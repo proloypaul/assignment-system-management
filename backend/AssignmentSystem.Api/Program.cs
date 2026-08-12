@@ -4,6 +4,7 @@ using AssignmentSystem.Application;
 using AssignmentSystem.Domain.Entities;
 using AssignmentSystem.Infrastructure;
 using AssignmentSystem.Infrastructure.Data;
+using AssignmentSystem.Api.Middleware;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
@@ -150,7 +151,28 @@ builder.Services.AddSwaggerGen(options =>
 
 var app = builder.Build();
 
+// ─── Data Seeding ──────────────────────────────────────────────────────────
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    try
+    {
+        var userManager = services.GetRequiredService<UserManager<User>>();
+        var roleManager = services.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        
+        await SeedData.InitializeAsync(userManager, roleManager, app.Configuration, logger);
+    }
+    catch (Exception ex)
+    {
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "An error occurred while seeding the database.");
+    }
+}
+
 // ─── Middleware Pipeline ───────────────────────────────────────────────────
+app.UseMiddleware<ExceptionHandlingMiddleware>();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
