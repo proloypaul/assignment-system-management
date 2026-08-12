@@ -33,29 +33,35 @@ public class ExceptionHandlingMiddleware
     {
         context.Response.ContentType = "application/json";
         
-        var response = new
-        {
-            message = exception.Message,
-            details = _env.IsDevelopment() ? exception.StackTrace : null
-        };
+        var statusCode = (int)HttpStatusCode.InternalServerError;
+        var message = "An unexpected error occurred.";
 
         switch (exception)
         {
             case UnauthorizedAccessException:
-                context.Response.StatusCode = (int)HttpStatusCode.Unauthorized;
+                statusCode = (int)HttpStatusCode.Unauthorized;
+                message = exception.Message;
                 break;
             case KeyNotFoundException:
-                context.Response.StatusCode = (int)HttpStatusCode.NotFound;
+                statusCode = (int)HttpStatusCode.NotFound;
+                message = exception.Message;
                 break;
             default:
-                context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
-                response = new
+                if (_env.IsDevelopment())
                 {
-                    message = "An unexpected error occurred.",
-                    details = _env.IsDevelopment() ? exception.StackTrace : null
-                };
+                    message = exception.Message;
+                }
                 break;
         }
+
+        context.Response.StatusCode = statusCode;
+
+        var response = new
+        {
+            success = false,
+            message = message,
+            statusCode = statusCode
+        };
 
         var result = JsonSerializer.Serialize(response, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
         await context.Response.WriteAsync(result);

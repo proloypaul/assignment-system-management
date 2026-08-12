@@ -11,6 +11,8 @@ export interface User {
 interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
+  _hasHydrated: boolean;
+  setHasHydrated: (state: boolean) => void;
   login: (user: User) => void;
   logout: () => void;
 }
@@ -20,11 +22,17 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       user: null,
       isAuthenticated: false,
+      _hasHydrated: false,
+      setHasHydrated: (state) => set({ _hasHydrated: state }),
       login: (user) => set({ user, isAuthenticated: true }),
       logout: () => set({ user: null, isAuthenticated: false }),
     }),
     {
-      name: 'auth-storage', // The name of the key in localStorage
+      name: 'auth-storage',
+      onRehydrateStorage: () => (state) => {
+        // Called once localStorage has been read — signal hydration is complete
+        state?.setHasHydrated(true);
+      },
     }
   )
 );

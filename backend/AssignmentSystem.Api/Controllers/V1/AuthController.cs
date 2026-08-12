@@ -29,7 +29,19 @@ public class AuthController : ControllerBase
 
         SetTokenCookies(result.AccessToken, result.RefreshToken);
 
-        return Ok(new { message = "Login successful." });
+        return Ok(new { success = true, statusCode = 200, message = "Login successful." });
+    }
+
+    /// <summary>Register a new student or teacher and set HttpOnly JWT cookies.</summary>
+    [HttpPost("register")]
+    [AllowAnonymous]
+    public async Task<IActionResult> Register([FromBody] RegisterRequest request)
+    {
+        var result = await _mediator.Send(new AssignmentSystem.Application.Features.Auth.Commands.Register.RegisterCommand(request.Name, request.Email, request.Password, request.Role));
+
+        SetTokenCookies(result.AccessToken, result.RefreshToken);
+
+        return Ok(new { success = true, statusCode = 200, message = "Registration successful." });
     }
 
     /// <summary>Use a valid refresh token cookie to obtain a new access token.</summary>
@@ -93,3 +105,4 @@ public class AuthController : ControllerBase
 }
 
 public record LoginRequest(string Email, string Password);
+public record RegisterRequest(string Name, string Email, string Password, string Role);

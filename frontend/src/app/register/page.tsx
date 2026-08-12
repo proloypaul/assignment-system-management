@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -14,66 +14,53 @@ import { Loader2, BookOpen, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
 
-const loginSchema = z.object({
+const registerSchema = z.object({
+  name: z.string().min(2, 'Name is required'),
   email: z.string().email('Please enter a valid email address'),
-  password: z.string().min(1, 'Password is required'),
-  role: z.enum(['Student', 'Teacher', 'Admin']),
+  password: z
+    .string()
+    .min(8, 'Passwords must be at least 8 characters.')
+    .regex(/[a-z]/, "Passwords must have at least one lowercase ('a'-'z').")
+    .regex(/[A-Z]/, "Passwords must have at least one uppercase ('A'-'Z')."),
+  role: z.enum(['Student', 'Teacher']),
 });
 
-type LoginFormValues = z.infer<typeof loginSchema>;
+type RegisterFormValues = z.infer<typeof registerSchema>;
 
-function LoginContent() {
+function RegisterContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const loginToStore = useAuthStore((state) => state.login);
-  const { isAuthenticated, user, _hasHydrated } = useAuthStore();
   const [showPassword, setShowPassword] = useState(false);
-
-  // If already authenticated, redirect to their dashboard
-  useEffect(() => {
-    if (_hasHydrated && isAuthenticated && user) {
-      const redirectUrl = searchParams.get('redirect');
-      router.replace(redirectUrl ?? `/${user.role.toLowerCase()}/dashboard`);
-    }
-  }, [_hasHydrated, isAuthenticated, user, router, searchParams]);
-
-  // Show spinner while hydrating or if about to redirect
-  if (!_hasHydrated || isAuthenticated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-muted">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
-  }
 
   const {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<LoginFormValues>({
-    resolver: zodResolver(loginSchema),
+  } = useForm<RegisterFormValues>({
+    resolver: zodResolver(registerSchema),
     defaultValues: {
       role: 'Student'
     }
   });
 
-  const loginMutation = useMutation({
-    mutationFn: async (data: LoginFormValues) => {
-      await api.post('/auth/login', data);
-
+  const registerMutation = useMutation({
+    mutationFn: async (data: RegisterFormValues) => {
+      await api.post('/auth/register', data);
+      
       const mockedUser: User = {
-        id: 'user-id', // Placeholder until backend /me endpoint is implemented
+        id: 'user-id',
         email: data.email,
-        name: data.email.split('@')[0],
+        name: data.name,
         role: data.role,
       };
-
+      
       return mockedUser;
     },
     onSuccess: (user, variables) => {
       loginToStore(user);
-      toast.success('Successfully logged in');
-
+      toast.success('Successfully registered & logged in');
+      
       const redirectUrl = searchParams.get('redirect');
       if (redirectUrl) {
         router.push(redirectUrl);
@@ -82,13 +69,14 @@ function LoginContent() {
       }
     },
     onError: (error: any) => {
-      const message = error.response?.data?.message || 'Login failed. Please check your credentials.';
+      const message = error.response?.data?.message || 'Registration failed.';
+      // Specifically split by commas to show all errors properly on separate lines if needed, or just standard string
       toast.error(message);
     },
   });
 
-  const onSubmit = (data: LoginFormValues) => {
-    loginMutation.mutate(data);
+  const onSubmit = (data: RegisterFormValues) => {
+    registerMutation.mutate(data);
   };
 
   return (
@@ -97,24 +85,36 @@ function LoginContent() {
         <div className="p-8 text-center bg-primary text-primary-foreground">
           <BookOpen className="w-12 h-12 mx-auto mb-4 opacity-90" />
           <h1 className="text-2xl font-bold tracking-tight">Assignment System</h1>
-          <p className="text-primary-foreground/80 mt-2 text-sm">Sign in to your account</p>
+          <p className="text-primary-foreground/80 mt-2 text-sm">Create a new account</p>
         </div>
-
+        
         <div className="p-8">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-
+            
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Login As</label>
+              <label className="text-sm font-medium text-foreground">Register As</label>
               <select
                 {...register('role')}
                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
                 <option value="Student">Student</option>
                 <option value="Teacher">Teacher</option>
-                <option value="Admin">Admin</option>
               </select>
               {errors.role && (
                 <p className="text-xs text-destructive">{errors.role.message}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Name</label>
+              <Input
+                type="text"
+                placeholder="John Doe"
+                {...register('name')}
+                className={errors.name ? 'border-destructive focus-visible:ring-destructive' : ''}
+              />
+              {errors.name && (
+                <p className="text-xs text-destructive">{errors.name.message}</p>
               )}
             </div>
 
@@ -132,10 +132,7 @@ function LoginContent() {
             </div>
 
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-foreground">Password</label>
-                <a href="#" className="text-xs text-primary hover:underline">Forgot password?</a>
-              </div>
+              <label className="text-sm font-medium text-foreground">Password</label>
               <div className="relative">
                 <Input
                   type={showPassword ? "text" : "password"}
@@ -159,23 +156,23 @@ function LoginContent() {
             <Button
               type="submit"
               className="w-full h-11 mt-6 text-base"
-              disabled={loginMutation.isPending}
+              disabled={registerMutation.isPending}
             >
-              {loginMutation.isPending ? (
+              {registerMutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Signing in...
+                  Registering...
                 </>
               ) : (
-                'Sign In'
+                'Create Account'
               )}
             </Button>
           </form>
         </div>
-
+        
         <div className="p-6 text-center border-t border-border bg-muted/50">
           <p className="text-sm text-muted-foreground">
-            Don't have an account? <Link href="/register" className="text-primary font-medium hover:underline">Register here</Link>
+            Already have an account? <Link href="/login" className="text-primary font-medium hover:underline">Sign In</Link>
           </p>
         </div>
       </div>
@@ -183,11 +180,10 @@ function LoginContent() {
   );
 }
 
-export default function LoginPage() {
+export default function RegisterPage() {
   return (
     <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-muted"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>}>
-      <LoginContent />
+      <RegisterContent />
     </Suspense>
   );
 }
-
