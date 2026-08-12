@@ -20,4 +20,5 @@ public class User : IdentityUser<Guid>
     public ICollection<TeacherSubjectAssignment> SubjectAssignments { get; set; } = new List<TeacherSubjectAssignment>();
     public ICollection<Assignment> CreatedAssignments { get; set; } = new List<Assignment>();
     public ICollection<Submission> Submissions { get; set; } = new List<Submission>();
+    public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
 }

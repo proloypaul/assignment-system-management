@@ -16,6 +16,7 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
     public DbSet<TeacherSubjectAssignment> TeacherSubjectAssignments { get; set; }
     public DbSet<Assignment> Assignments { get; set; }
     public DbSet<Submission> Submissions { get; set; }
+    public DbSet<RefreshToken> RefreshTokens { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

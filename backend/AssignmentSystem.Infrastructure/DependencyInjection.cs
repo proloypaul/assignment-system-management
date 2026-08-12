@@ -1,4 +1,6 @@
+using AssignmentSystem.Application.Common.Interfaces;
 using AssignmentSystem.Infrastructure.Data;
+using AssignmentSystem.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,6 +20,9 @@ public static class DependencyInjection
 
         services.AddDbContext<ApplicationDbContext>(options =>
             options.UseNpgsql(connectionString));
+
+        services.AddScoped<ITokenService, TokenService>();
+        services.AddScoped<ICurrentUserService, CurrentUserService>();
 
         return services;
     }
