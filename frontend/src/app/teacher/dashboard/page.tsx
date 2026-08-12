@@ -1,54 +1,103 @@
 'use client';
 
-import AuthGuard from '@/components/AuthGuard';
-import { useAuthStore } from '@/store/authStore';
-import { Button } from '@/components/ui/Button';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
-import { useRouter } from 'next/navigation';
+import { queryKeys } from '@/lib/queryKeys';
+import { Assignment, PaginatedResponse } from '@/lib/types';
+import DashboardLayout from '@/components/DashboardLayout';
+import AuthGuard from '@/components/AuthGuard';
+import { DataTable, Column } from '@/components/ui/DataTable';
+import { Button } from '@/components/ui/Button';
+import { Plus } from 'lucide-react';
 
 export default function TeacherDashboard() {
-  const user = useAuthStore(state => state.user);
-  const logout = useAuthStore(state => state.logout);
-  const router = useRouter();
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
 
-  const handleLogout = async () => {
-    try {
-      await api.post('/auth/logout');
-    } catch (e) {
-      console.error(e);
+  const { data, isLoading } = useQuery({
+    queryKey: ['teacher-assignments', page, pageSize], // Assuming a custom query for teacher's own assignments
+    queryFn: async () => {
+      // NOTE: For now using the generic assignments endpoint. 
+      // In a real app, you'd want an endpoint like /assignments/my that filters by TeacherId.
+      const response = await api.get<PaginatedResponse<Assignment>>('/assignments', {
+        params: { page, pageSize }
+      });
+      return response.data;
     }
-    logout();
-    router.push('/login');
-  };
+  });
+
+  const columns: Column<Assignment>[] = [
+    {
+      header: 'Title',
+      accessorKey: 'title',
+      cell: (item) => <span className="font-medium">{item.title}</span>,
+    },
+    {
+      header: 'Subject',
+      cell: (item) => item.subject?.name || 'N/A',
+    },
+    {
+      header: 'Deadline',
+      cell: (item) => new Date(item.endDate).toLocaleDateString(),
+    },
+    {
+      header: 'Max Marks',
+      accessorKey: 'maxMarks',
+    },
+    {
+      header: 'Status',
+      cell: (item) => (
+        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+          item.status === 'Published' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+        }`}>
+          {item.status}
+        </span>
+      ),
+    },
+    {
+      header: 'Action',
+      cell: (item) => (
+        <div className="space-x-2">
+          <Button size="sm" variant="outline" onClick={() => alert(`Edit ${item.title}`)}>
+            Edit
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => alert(`Grade ${item.title}`)}>
+            Grade
+          </Button>
+        </div>
+      ),
+    },
+  ];
 
   return (
-    <AuthGuard allowedRoles={['Teacher']}>
-      <div className="min-h-screen bg-muted p-8">
-        <div className="max-w-4xl mx-auto bg-background rounded-xl shadow border border-border p-8">
-          <div className="flex justify-between items-center mb-8">
-            <h1 className="text-3xl font-bold tracking-tight">Teacher Dashboard</h1>
-            <Button variant="outline" onClick={handleLogout}>Sign Out</Button>
-          </div>
-          
-          <div className="p-6 bg-primary/10 rounded-lg border border-primary/20 mb-8">
-            <h2 className="text-xl font-semibold mb-2">Welcome back, {user?.name}!</h2>
-            <p className="text-muted-foreground">
-              You are signed in as a <span className="font-medium text-foreground">Teacher</span>.
-            </p>
+    <AuthGuard allowedRoles={['Teacher', 'Admin']}>
+      <DashboardLayout>
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight text-foreground">My Assignments</h2>
+              <p className="text-muted-foreground mt-1 text-sm">
+                Manage your assignments and grade submissions.
+              </p>
+            </div>
+            <Button onClick={() => alert('Open Create Assignment Modal')}>
+              <Plus className="w-4 h-4 mr-2" />
+              Create Assignment
+            </Button>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="p-6 border border-border rounded-lg shadow-sm bg-card">
-              <h3 className="font-semibold text-lg">Manage Assignments</h3>
-              <p className="text-sm text-muted-foreground mt-2">Create and update assignments for your subjects.</p>
-            </div>
-            <div className="p-6 border border-border rounded-lg shadow-sm bg-card">
-              <h3 className="font-semibold text-lg">Grade Submissions</h3>
-              <p className="text-sm text-muted-foreground mt-2">Review and grade student submissions.</p>
-            </div>
-          </div>
+          <DataTable
+            data={data?.items || []}
+            columns={columns}
+            isLoading={isLoading}
+            page={page}
+            totalPages={data?.totalPages || 1}
+            onPageChange={setPage}
+            emptyMessage="You haven't created any assignments yet."
+          />
         </div>
-      </div>
+      </DashboardLayout>
     </AuthGuard>
   );
 }

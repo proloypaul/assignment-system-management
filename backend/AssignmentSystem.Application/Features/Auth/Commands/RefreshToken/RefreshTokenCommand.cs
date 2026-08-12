@@ -64,6 +64,6 @@ public class RefreshTokenCommandHandler : IRequestHandler<RefreshTokenCommand, A
 
         await _userManager.UpdateAsync(matchedUser);
 
-        return new AuthTokensDto(newAccessToken, newRefreshToken);
+        return new AuthTokensDto(newAccessToken, newRefreshToken, matchedUser.Id, matchedUser.Name, matchedUser.Email!, role);
     }
 }

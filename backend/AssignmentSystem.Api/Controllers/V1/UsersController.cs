@@ -19,15 +19,54 @@ public class UsersController : ControllerBase
         _userManager = userManager;
     }
 
-    /// <summary>Get all users (Admin only).</summary>
+    /// <summary>Get all users with pagination, role filter, and search (Admin only).</summary>
     [HttpGet]
-    public IActionResult GetAll()
+    public async Task<IActionResult> GetAll(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? role = null,
+        [FromQuery] string? search = null)
     {
-        var users = _userManager.Users.Select(u => new
+        var query = _userManager.Users.AsQueryable();
+
+        // Role filter
+        if (!string.IsNullOrWhiteSpace(role))
         {
-            u.Id, u.Name, u.Email, u.PhoneNumber, u.ProfileImage, u.CreatedAt
-        }).ToList();
-        return Ok(users);
+            var usersInRole = await _userManager.GetUsersInRoleAsync(role);
+            var ids = usersInRole.Select(u => u.Id).ToHashSet();
+            query = query.Where(u => ids.Contains(u.Id));
+        }
+
+        // Search across Name, Email, PhoneNumber
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.ToLower();
+            query = query.Where(u =>
+                (u.Name != null && u.Name.ToLower().Contains(term)) ||
+                (u.Email != null && u.Email.ToLower().Contains(term)) ||
+                (u.PhoneNumber != null && u.PhoneNumber.ToLower().Contains(term)));
+        }
+
+        var totalCount = query.Count();
+        var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+        var items = query
+            .OrderByDescending(u => u.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(u => new { u.Id, u.Name, u.Email, u.PhoneNumber, u.CreatedAt })
+            .ToList();
+
+        // Fetch roles for each user
+        var result = new List<object>();
+        foreach (var u in items)
+        {
+            var user = await _userManager.FindByIdAsync(u.Id.ToString());
+            var roles = user != null ? await _userManager.GetRolesAsync(user) : [];
+            result.Add(new { u.Id, u.Name, u.Email, u.PhoneNumber, u.CreatedAt, Role = roles.FirstOrDefault() ?? "Unknown" });
+        }
+
+        return Ok(new { items = result, totalCount, page, pageSize, totalPages });
     }
 
     /// <summary>Get a single user by ID (Admin only).</summary>

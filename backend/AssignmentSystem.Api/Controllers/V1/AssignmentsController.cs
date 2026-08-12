@@ -24,16 +24,31 @@ public class AssignmentsController : ControllerBase
         _currentUser = currentUser;
     }
 
-    /// <summary>Get all published assignments (all roles).</summary>
+    /// <summary>Get all published assignments with pagination (all roles).</summary>
     [HttpGet]
-    public async Task<IActionResult> GetAll()
+    public async Task<IActionResult> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
     {
-        var assignments = await _db.Assignments
+        var query = _db.Assignments
             .Include(a => a.Subject)
             .Include(a => a.Teacher)
-            .Where(a => a.Status == AssignmentStatus.Published)
+            .Where(a => a.Status == AssignmentStatus.Published);
+
+        var totalCount = await query.CountAsync();
+        var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+        var items = await query
+            .OrderByDescending(a => a.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(a => new
+            {
+                a.Id, a.Title, a.Description, a.StartDate, a.EndDate, a.MaxMarks, a.Status,
+                Subject = a.Subject == null ? null : new { a.Subject.Id, a.Subject.Name },
+                Teacher = a.Teacher == null ? null : new { a.Teacher.Id, a.Teacher.Name }
+            })
             .ToListAsync();
-        return Ok(assignments);
+
+        return Ok(new { items, totalCount, page, pageSize, totalPages });
     }
 
     /// <summary>Get a single assignment by ID.</summary>

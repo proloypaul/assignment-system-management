@@ -29,7 +29,13 @@ public class AuthController : ControllerBase
 
         SetTokenCookies(result.AccessToken, result.RefreshToken);
 
-        return Ok(new { success = true, statusCode = 200, message = "Login successful." });
+        return Ok(new
+        {
+            success = true,
+            statusCode = 200,
+            message = "Login successful.",
+            data = new { id = result.UserId, name = result.Name, email = result.Email, role = result.Role }
+        });
     }
 
     /// <summary>Register a new student or teacher and set HttpOnly JWT cookies.</summary>
@@ -41,7 +47,13 @@ public class AuthController : ControllerBase
 
         SetTokenCookies(result.AccessToken, result.RefreshToken);
 
-        return Ok(new { success = true, statusCode = 200, message = "Registration successful." });
+        return Ok(new
+        {
+            success = true,
+            statusCode = 200,
+            message = "Registration successful.",
+            data = new { id = result.UserId, name = result.Name, email = result.Email, role = result.Role }
+        });
     }
 
     /// <summary>Use a valid refresh token cookie to obtain a new access token.</summary>

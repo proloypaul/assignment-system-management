@@ -46,16 +46,17 @@ function RegisterContent() {
 
   const registerMutation = useMutation({
     mutationFn: async (data: RegisterFormValues) => {
-      await api.post('/auth/register', data);
+      const response = await api.post('/auth/register', data);
+      const userData = response.data.data;
       
-      const mockedUser: User = {
-        id: 'user-id',
-        email: data.email,
-        name: data.name,
-        role: data.role,
+      const realUser: User = {
+        id: userData.id,
+        email: userData.email,
+        name: userData.name,
+        role: userData.role,
       };
       
-      return mockedUser;
+      return realUser;
     },
     onSuccess: (user, variables) => {
       loginToStore(user);

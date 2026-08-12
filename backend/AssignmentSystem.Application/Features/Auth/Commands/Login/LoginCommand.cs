@@ -43,6 +43,6 @@ public class LoginCommandHandler : IRequestHandler<LoginCommand, AuthTokensDto>
         });
         await _userManager.UpdateAsync(user);
 
-        return new AuthTokensDto(accessToken, refreshToken);
+        return new AuthTokensDto(accessToken, refreshToken, user.Id, user.Name, user.Email!, role);
     }
 }

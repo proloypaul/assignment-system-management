@@ -46,14 +46,6 @@ public class RegisterCommandHandler : IRequestHandler<RegisterCommand, AuthToken
         var accessToken = _tokenService.GenerateAccessToken(user.Id, user.Email!, request.Role);
         var refreshToken = _tokenService.GenerateRefreshToken();
 
-        user.RefreshTokens.Add(new RefreshTokenEntity
-        {
-            Token = refreshToken,
-            ExpiresAt = DateTime.UtcNow.AddDays(7),
-            CreatedAt = DateTime.UtcNow
-        });
-        await _userManager.UpdateAsync(user);
-
-        return new AuthTokensDto(accessToken, refreshToken);
+        return new AuthTokensDto(accessToken, refreshToken, user.Id, user.Name, user.Email!, request.Role);
     }
 }

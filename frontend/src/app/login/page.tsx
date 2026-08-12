@@ -37,14 +37,6 @@ function LoginContent() {
     }
   }, [_hasHydrated, isAuthenticated, user, router, searchParams]);
 
-  // Show spinner while hydrating or if about to redirect
-  if (!_hasHydrated || isAuthenticated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-muted">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
-  }
 
   const {
     register,
@@ -59,16 +51,17 @@ function LoginContent() {
 
   const loginMutation = useMutation({
     mutationFn: async (data: LoginFormValues) => {
-      await api.post('/auth/login', data);
-
-      const mockedUser: User = {
-        id: 'user-id', // Placeholder until backend /me endpoint is implemented
-        email: data.email,
-        name: data.email.split('@')[0],
-        role: data.role,
+      const response = await api.post('/auth/login', data);
+      const userData = response.data.data;
+      
+      const realUser: User = {
+        id: userData.id,
+        email: userData.email,
+        name: userData.name,
+        role: userData.role,
       };
-
-      return mockedUser;
+      
+      return realUser;
     },
     onSuccess: (user, variables) => {
       loginToStore(user);
@@ -87,6 +80,15 @@ function LoginContent() {
     },
   });
 
+
+  // Show spinner while hydrating or if about to redirect
+  if (!_hasHydrated || isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-muted">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
   const onSubmit = (data: LoginFormValues) => {
     loginMutation.mutate(data);
   };

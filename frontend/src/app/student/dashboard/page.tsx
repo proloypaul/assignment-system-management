@@ -1,54 +1,83 @@
 'use client';
 
-import AuthGuard from '@/components/AuthGuard';
-import { useAuthStore } from '@/store/authStore';
-import { Button } from '@/components/ui/Button';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
-import { useRouter } from 'next/navigation';
+import { queryKeys } from '@/lib/queryKeys';
+import { Assignment, PaginatedResponse } from '@/lib/types';
+import DashboardLayout from '@/components/DashboardLayout';
+import AuthGuard from '@/components/AuthGuard';
+import { DataTable, Column } from '@/components/ui/DataTable';
+import { Button } from '@/components/ui/Button';
 
 export default function StudentDashboard() {
-  const user = useAuthStore(state => state.user);
-  const logout = useAuthStore(state => state.logout);
-  const router = useRouter();
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
 
-  const handleLogout = async () => {
-    try {
-      await api.post('/auth/logout');
-    } catch (e) {
-      console.error(e);
+  const { data, isLoading } = useQuery({
+    queryKey: queryKeys.assignments.all(page, pageSize),
+    queryFn: async () => {
+      const response = await api.get<PaginatedResponse<Assignment>>('/assignments', {
+        params: { page, pageSize }
+      });
+      return response.data;
     }
-    logout();
-    router.push('/login');
-  };
+  });
+
+  const columns: Column<Assignment>[] = [
+    {
+      header: 'Title',
+      accessorKey: 'title',
+      cell: (item) => <span className="font-medium">{item.title}</span>,
+    },
+    {
+      header: 'Subject',
+      cell: (item) => item.subject?.name || 'N/A',
+    },
+    {
+      header: 'Teacher',
+      cell: (item) => item.teacher?.name || 'N/A',
+    },
+    {
+      header: 'Deadline',
+      cell: (item) => new Date(item.endDate).toLocaleDateString(),
+    },
+    {
+      header: 'Max Marks',
+      accessorKey: 'maxMarks',
+    },
+    {
+      header: 'Action',
+      cell: (item) => (
+        <Button size="sm" variant="outline" onClick={() => alert(`Submit modal for ${item.title}`)}>
+          Submit Work
+        </Button>
+      ),
+    },
+  ];
 
   return (
     <AuthGuard allowedRoles={['Student']}>
-      <div className="min-h-screen bg-muted p-8">
-        <div className="max-w-4xl mx-auto bg-background rounded-xl shadow border border-border p-8">
-          <div className="flex justify-between items-center mb-8">
-            <h1 className="text-3xl font-bold tracking-tight">Student Dashboard</h1>
-            <Button variant="outline" onClick={handleLogout}>Sign Out</Button>
-          </div>
-          
-          <div className="p-6 bg-primary/10 rounded-lg border border-primary/20 mb-8">
-            <h2 className="text-xl font-semibold mb-2">Welcome back, {user?.name}!</h2>
-            <p className="text-muted-foreground">
-              You are signed in as a <span className="font-medium text-foreground">Student</span>.
+      <DashboardLayout>
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight text-foreground">Available Assignments</h2>
+            <p className="text-muted-foreground mt-1 text-sm">
+              View and submit your published assignments.
             </p>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="p-6 border border-border rounded-lg shadow-sm bg-card">
-              <h3 className="font-semibold text-lg">My Assignments</h3>
-              <p className="text-sm text-muted-foreground mt-2">View and manage your current assignments.</p>
-            </div>
-            <div className="p-6 border border-border rounded-lg shadow-sm bg-card">
-              <h3 className="font-semibold text-lg">Submissions</h3>
-              <p className="text-sm text-muted-foreground mt-2">Track the status of your recent submissions.</p>
-            </div>
-          </div>
+          <DataTable
+            data={data?.items || []}
+            columns={columns}
+            isLoading={isLoading}
+            page={page}
+            totalPages={data?.totalPages || 1}
+            onPageChange={setPage}
+            emptyMessage="No assignments available at the moment."
+          />
         </div>
-      </div>
+      </DashboardLayout>
     </AuthGuard>
   );
 }
