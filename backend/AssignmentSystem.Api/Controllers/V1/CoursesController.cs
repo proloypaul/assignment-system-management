@@ -84,7 +84,37 @@ public class CoursesController : ControllerBase
         await _db.SaveChangesAsync();
         return NoContent();
     }
+    /// <summary>Enroll a student in a course (Admin only).</summary>
+    [HttpPost("{id:guid}/enroll-student")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> EnrollStudent(Guid id, [FromBody] EnrollStudentRequest request)
+    {
+        var course = await _db.Courses.FindAsync(id);
+        if (course is null) return NotFound("Course not found.");
+
+        var student = await _db.Users.FindAsync(request.StudentId);
+        if (student is null) return NotFound("Student not found.");
+
+        var existing = await _db.Set<CourseEnrollment>()
+            .FirstOrDefaultAsync(ce => ce.CourseId == id && ce.StudentId == request.StudentId);
+            
+        if (existing is not null)
+            return Conflict(new { message = "Student is already enrolled in this course." });
+
+        var enrollment = new CourseEnrollment
+        {
+            CourseId = id,
+            StudentId = request.StudentId,
+            EnrolledAt = DateTime.UtcNow
+        };
+
+        _db.Set<CourseEnrollment>().Add(enrollment);
+        await _db.SaveChangesAsync();
+
+        return Ok(new { message = "Student enrolled successfully." });
+    }
 }
 
 public record CreateCourseRequest(string Name, string Code, string Description, int Capacity, DateTime StartDate, DateTime EndDate);
 public record UpdateCourseRequest(string? Name, string? Description, int? Capacity, bool? IsActive);
+public record EnrollStudentRequest(Guid StudentId);

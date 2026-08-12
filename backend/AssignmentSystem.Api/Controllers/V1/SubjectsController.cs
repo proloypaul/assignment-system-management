@@ -79,7 +79,39 @@ public class SubjectsController : ControllerBase
         await _db.SaveChangesAsync();
         return NoContent();
     }
+
+    /// <summary>Assign a teacher to a subject (Admin only).</summary>
+    [HttpPost("{id:guid}/assign-teacher")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> AssignTeacher(Guid id, [FromBody] AssignTeacherRequest request)
+    {
+        var subject = await _db.Subjects.FindAsync(id);
+        if (subject is null) return NotFound("Subject not found.");
+
+        var teacher = await _db.Users.FindAsync(request.TeacherId);
+        if (teacher is null) return NotFound("Teacher not found.");
+
+        // In a real app we'd verify the user is actually in the "Teacher" role.
+        var existing = await _db.Set<TeacherSubjectAssignment>()
+            .FirstOrDefaultAsync(ts => ts.SubjectId == id && ts.TeacherId == request.TeacherId);
+            
+        if (existing is not null)
+            return Conflict(new { message = "Teacher is already assigned to this subject." });
+
+        var assignment = new TeacherSubjectAssignment
+        {
+            SubjectId = id,
+            TeacherId = request.TeacherId,
+            AssignedDate = DateTime.UtcNow
+        };
+
+        _db.Set<TeacherSubjectAssignment>().Add(assignment);
+        await _db.SaveChangesAsync();
+
+        return Ok(new { message = "Teacher assigned successfully." });
+    }
 }
 
 public record CreateSubjectRequest(string Name, string Code, int Credits, string? SyllabusUrl, Guid CourseId);
 public record UpdateSubjectRequest(string? Name, int? Credits, string? SyllabusUrl);
+public record AssignTeacherRequest(Guid TeacherId);

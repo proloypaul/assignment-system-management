@@ -33,6 +33,19 @@ public class AssignmentsController : ControllerBase
             .Include(a => a.Teacher)
             .Where(a => a.Status == AssignmentStatus.Published);
 
+        if (User.IsInRole("Student"))
+        {
+            var studentId = _currentUser.UserId;
+            if (studentId.HasValue)
+            {
+                var enrolledCourseIds = _db.Set<CourseEnrollment>()
+                    .Where(ce => ce.StudentId == studentId.Value)
+                    .Select(ce => ce.CourseId);
+
+                query = query.Where(a => enrolledCourseIds.Contains(a.Subject.CourseId));
+            }
+        }
+
         var totalCount = await query.CountAsync();
         var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
 

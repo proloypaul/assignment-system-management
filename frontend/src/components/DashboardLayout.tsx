@@ -19,12 +19,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const navLinks = {
     Student: [
       { name: 'Dashboard', href: '/student/dashboard', icon: LayoutDashboard },
+      { name: 'My Assignments', href: '/student/assignments', icon: BookOpen },
+      { name: 'My Submissions', href: '/student/submissions', icon: FileText },
     ],
     Teacher: [
       { name: 'Dashboard', href: '/teacher/dashboard', icon: LayoutDashboard },
+      { name: 'Assignments', href: '/teacher/assignments', icon: BookOpen },
     ],
     Admin: [
       { name: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
+      { name: 'Users', href: '/admin/users', icon: Users },
+      { name: 'Courses', href: '/admin/courses', icon: BookOpen },
+      { name: 'Subjects', href: '/admin/subjects', icon: BookOpen },
+      { name: 'Assignments', href: '/admin/assignments', icon: FileText },
     ],
   };
 

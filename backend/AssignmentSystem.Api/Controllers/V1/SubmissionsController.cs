@@ -30,7 +30,7 @@ public class SubmissionsController : ControllerBase
     /// </summary>
     [HttpPost("{assignmentId:guid}")]
     [Authorize(Roles = "Student")]
-    public async Task<IActionResult> Submit(Guid assignmentId, [FromBody] SubmitRequest request)
+    public async Task<IActionResult> Submit(Guid assignmentId, [FromForm] SubmitRequest request)
     {
         var studentId = _currentUser.UserId
             ?? throw new UnauthorizedAccessException();
@@ -47,24 +47,71 @@ public class SubmissionsController : ControllerBase
         if (existing is not null)
             return Conflict(new { message = "You have already submitted for this assignment." });
 
+        string? attachmentUrl = null;
+        if (request.File is not null)
+        {
+            if (request.File.ContentType != "application/pdf")
+                return BadRequest(new { message = "Only PDF files are allowed." });
+                
+            var uploadPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "submissions");
+            if (!Directory.Exists(uploadPath))
+                Directory.CreateDirectory(uploadPath);
+
+            var fileName = $"{Guid.NewGuid()}_{request.File.FileName}";
+            var filePath = Path.Combine(uploadPath, fileName);
+
+            using (var stream = new FileStream(filePath, FileMode.Create))
+            {
+                await request.File.CopyToAsync(stream);
+            }
+
+            var requestUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
+            attachmentUrl = $"{requestUrl}/uploads/submissions/{fileName}";
+        }
+
         var submission = new Submission
         {
             AssignmentId = assignmentId,
             StudentId = studentId,
             AnswerText = request.AnswerText,
+            AttachmentFileUrl = attachmentUrl,
             SubmittedAt = DateTime.UtcNow,
-            Status = SubmissionStatus.Processing // Background worker will set to Submitted
+            Status = SubmissionStatus.Submitted 
         };
 
         _db.Submissions.Add(submission);
         await _db.SaveChangesAsync();
 
-        // TODO: Push to async background queue (Hangfire/RabbitMQ) in a later phase
-        // For now, immediately mark as Submitted
-        submission.Status = SubmissionStatus.Submitted;
-        await _db.SaveChangesAsync();
+        return Accepted(new { submissionId = submission.Id, status = submission.Status.ToString(), attachmentUrl });
+    }
 
-        return Accepted(new { submissionId = submission.Id, status = submission.Status.ToString() });
+    /// <summary>Get all submissions made by the current student.</summary>
+    [HttpGet("my")]
+    [Authorize(Roles = "Student")]
+    public async Task<IActionResult> GetMySubmissions()
+    {
+        var studentId = _currentUser.UserId;
+        if (!studentId.HasValue) return Unauthorized();
+
+        var submissions = await _db.Submissions
+            .Include(s => s.Assignment)
+            .Where(s => s.StudentId == studentId.Value)
+            .OrderByDescending(s => s.SubmittedAt)
+            .Select(s => new
+            {
+                s.Id,
+                s.AssignmentId,
+                AssignmentTitle = s.Assignment.Title,
+                s.AnswerText,
+                s.AttachmentFileUrl,
+                s.Status,
+                s.MarksAwarded,
+                s.Feedback,
+                s.SubmittedAt
+            })
+            .ToListAsync();
+
+        return Ok(submissions);
     }
 
     /// <summary>Get a student's own submission for an assignment.</summary>
@@ -95,5 +142,9 @@ public class SubmissionsController : ControllerBase
     }
 }
 
-public record SubmitRequest(string? AnswerText);
+public class SubmitRequest
+{
+    public string? AnswerText { get; set; }
+    public IFormFile? File { get; set; }
+}
 public record GradeRequest(int MarksAwarded, string? Feedback);

@@ -53,8 +53,13 @@ export interface Course {
 export interface Submission {
   id: string;
   assignmentId: string;
+  assignmentTitle?: string;
   studentId: string;
   answerText?: string;
+  /** Stored URL of uploaded PDF on the server */
+  attachmentFileUrl?: string;
+  /** Alias used in some responses */
+  attachmentUrl?: string;
   status: string;
   marksAwarded?: number;
   feedback?: string;

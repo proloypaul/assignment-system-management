@@ -11,6 +11,10 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
 
+// ─── Global: treat DateTime.Unspecified as UTC for Npgsql/PostgreSQL ──────────
+// JSON deserialization produces Kind=Unspecified; PostgreSQL requires UTC.
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
 var builder = WebApplication.CreateBuilder(args);
 
 // ─── Infrastructure (DbContext, TokenService, CurrentUserService) ──────────
@@ -189,6 +193,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseStaticFiles();
 app.UseCors("FrontendPolicy");
 app.UseAuthentication();
 app.UseAuthorization();
