@@ -102,6 +102,8 @@ public class SubmissionsController : ControllerBase
                 Id = s.Id,
                 AssignmentId = s.AssignmentId,
                 AssignmentTitle = s.Assignment != null ? s.Assignment.Title : null,
+                SubjectName = s.Assignment != null && s.Assignment.Subject != null ? s.Assignment.Subject.Name : null,
+                CourseName = s.Assignment != null && s.Assignment.Subject != null && s.Assignment.Subject.Course != null ? s.Assignment.Subject.Course.Name : null,
                 AnswerText = s.AnswerText,
                 AttachmentFileUrl = s.AttachmentFileUrl,
                 Status = s.Status.ToString(),
@@ -129,6 +131,8 @@ public class SubmissionsController : ControllerBase
                 Id = s.Id,
                 AssignmentId = s.AssignmentId,
                 AssignmentTitle = s.Assignment != null ? s.Assignment.Title : null,
+                SubjectName = s.Assignment != null && s.Assignment.Subject != null ? s.Assignment.Subject.Name : null,
+                CourseName = s.Assignment != null && s.Assignment.Subject != null && s.Assignment.Subject.Course != null ? s.Assignment.Subject.Course.Name : null,
                 AnswerText = s.AnswerText,
                 AttachmentFileUrl = s.AttachmentFileUrl,
                 Status = s.Status.ToString(),
@@ -164,6 +168,8 @@ public class MySubmissionDto
     public Guid Id { get; set; }
     public Guid AssignmentId { get; set; }
     public string? AssignmentTitle { get; set; }
+    public string? SubjectName { get; set; }
+    public string? CourseName { get; set; }
     public string? AnswerText { get; set; }
     public string? AttachmentFileUrl { get; set; }
     public string Status { get; set; } = string.Empty;

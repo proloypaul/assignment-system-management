@@ -85,12 +85,18 @@ export default function StudentAssignmentsPage() {
     {
       header: 'Action',
       cell: (item) => (
-        <Button size="sm" variant="outline" onClick={() => {
-          setSelectedAssignment(item);
-          setIsModalOpen(true);
-        }}>
-          Submit Work
-        </Button>
+        item.isSubmitted ? (
+          <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-full">
+            Submitted
+          </span>
+        ) : (
+          <Button size="sm" variant="outline" onClick={() => {
+            setSelectedAssignment(item);
+            setIsModalOpen(true);
+          }}>
+            Submit Work
+          </Button>
+        )
       ),
     },
   ];

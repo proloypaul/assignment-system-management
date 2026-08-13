@@ -92,16 +92,16 @@ public class AuthController : ControllerBase
         var accessTokenOptions = new CookieOptions
         {
             HttpOnly = true,
-            Secure = isSecure,
-            SameSite = SameSiteMode.Strict,
+            Secure = true, // Required for SameSite=None
+            SameSite = SameSiteMode.None,
             Expires = DateTimeOffset.UtcNow.AddMinutes(60)
         };
 
         var refreshTokenOptions = new CookieOptions
         {
             HttpOnly = true,
-            Secure = isSecure,
-            SameSite = SameSiteMode.Strict,
+            Secure = true, // Required for SameSite=None
+            SameSite = SameSiteMode.None,
             Expires = DateTimeOffset.UtcNow.AddDays(7)
         };
 

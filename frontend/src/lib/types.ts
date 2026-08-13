@@ -42,6 +42,7 @@ export interface Assignment {
   status: string;
   subject?: Subject;
   teacher?: Teacher;
+  isSubmitted?: boolean;
 }
 
 export interface Course {
@@ -62,6 +63,7 @@ export interface Submission {
   assignmentTitle?: string;
   teacherName?: string;
   subjectName?: string;
+  courseName?: string;
   studentId: string;
   studentName?: string;
   studentEmail?: string;

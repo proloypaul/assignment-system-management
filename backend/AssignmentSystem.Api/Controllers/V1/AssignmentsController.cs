@@ -70,7 +70,8 @@ public class AssignmentsController : ControllerBase
                 MaxMarks = a.MaxMarks,
                 Status = a.Status.ToString(),
                 Subject = a.Subject == null ? null : new AssignmentSubjectDto { Id = a.Subject.Id, Name = a.Subject.Name },
-                Teacher = a.Teacher == null ? null : new AssignmentTeacherDto { Id = a.Teacher.Id, Name = a.Teacher.Name }
+                Teacher = a.Teacher == null ? null : new AssignmentTeacherDto { Id = a.Teacher.Id, Name = a.Teacher.Name },
+                IsSubmitted = _currentUser.UserId.HasValue ? a.Submissions.Any(s => s.StudentId == _currentUser.UserId.Value) : false
             })
             .ToListAsync();
 
@@ -93,7 +94,8 @@ public class AssignmentsController : ControllerBase
                 MaxMarks = a.MaxMarks,
                 Status = a.Status.ToString(),
                 Subject = a.Subject == null ? null : new AssignmentSubjectDto { Id = a.Subject.Id, Name = a.Subject.Name },
-                Teacher = a.Teacher == null ? null : new AssignmentTeacherDto { Id = a.Teacher.Id, Name = a.Teacher.Name }
+                Teacher = a.Teacher == null ? null : new AssignmentTeacherDto { Id = a.Teacher.Id, Name = a.Teacher.Name },
+                IsSubmitted = _currentUser.UserId.HasValue ? a.Submissions.Any(s => s.StudentId == _currentUser.UserId.Value) : false
             })
             .FirstOrDefaultAsync();
 
@@ -155,13 +157,16 @@ public class AssignmentsController : ControllerBase
         return NoContent();
     }
 
-    /// <summary>Delete an assignment (Admin only).</summary>
+    /// <summary>Delete an assignment (Admin or Teacher).</summary>
     [HttpDelete("{id:guid}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Teacher")]
     public async Task<IActionResult> Delete(Guid id)
     {
         var assignment = await _db.Assignments.FindAsync(id);
         if (assignment is null) return NotFound();
+
+        if (User.IsInRole("Teacher") && assignment.TeacherId != _currentUser.UserId)
+            return Forbid();
 
         _db.Assignments.Remove(assignment);
         await _db.SaveChangesAsync();
@@ -215,6 +220,7 @@ public class AssignmentDto
     public string Status { get; set; } = string.Empty;
     public AssignmentSubjectDto? Subject { get; set; }
     public AssignmentTeacherDto? Teacher { get; set; }
+    public bool IsSubmitted { get; set; }
 }
 
 public class AssignmentSubjectDto

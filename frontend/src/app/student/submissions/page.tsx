@@ -21,8 +21,16 @@ export default function StudentSubmissionsPage() {
 
   const columns: Column<Submission>[] = [
     {
+      header: 'Course',
+      cell: (item) => <span className="font-medium text-blue-600">{item.courseName || '—'}</span>,
+    },
+    {
+      header: 'Subject',
+      cell: (item) => <span className="font-medium">{item.subjectName || '—'}</span>,
+    },
+    {
       header: 'Assignment',
-      cell: (item) => <span className="font-medium">{item.assignmentId}</span>,
+      cell: (item) => <span className="font-medium">{item.assignmentTitle || item.assignmentId}</span>,
     },
     {
       header: 'Submitted At',
