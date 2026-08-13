@@ -24,15 +24,14 @@ public class AssignmentsController : ControllerBase
         _currentUser = currentUser;
     }
 
-    /// <summary>Get all published assignments with pagination (all roles).</summary>
+    /// <summary>Get all published assignments with pagination — Students see only their enrolled courses' assignments.</summary>
     [HttpGet]
     public async Task<IActionResult> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
     {
         var query = _db.Assignments
-            .Include(a => a.Subject)
-            .Include(a => a.Teacher)
             .Where(a => a.Status == AssignmentStatus.Published);
 
+        // Filter by student enrollment
         if (User.IsInRole("Student"))
         {
             var studentId = _currentUser.UserId;
@@ -42,7 +41,7 @@ public class AssignmentsController : ControllerBase
                     .Where(ce => ce.StudentId == studentId.Value)
                     .Select(ce => ce.CourseId);
 
-                query = query.Where(a => enrolledCourseIds.Contains(a.Subject.CourseId));
+                query = query.Where(a => a.Subject != null && enrolledCourseIds.Contains(a.Subject.CourseId));
             }
         }
 
@@ -53,11 +52,17 @@ public class AssignmentsController : ControllerBase
             .OrderByDescending(a => a.CreatedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(a => new
+            .Select(a => new AssignmentDto
             {
-                a.Id, a.Title, a.Description, a.StartDate, a.EndDate, a.MaxMarks, a.Status,
-                Subject = a.Subject == null ? null : new { a.Subject.Id, a.Subject.Name },
-                Teacher = a.Teacher == null ? null : new { a.Teacher.Id, a.Teacher.Name }
+                Id = a.Id,
+                Title = a.Title,
+                Description = a.Description,
+                StartDate = a.StartDate,
+                EndDate = a.EndDate,
+                MaxMarks = a.MaxMarks,
+                Status = a.Status.ToString(),
+                Subject = a.Subject == null ? null : new AssignmentSubjectDto { Id = a.Subject.Id, Name = a.Subject.Name },
+                Teacher = a.Teacher == null ? null : new AssignmentTeacherDto { Id = a.Teacher.Id, Name = a.Teacher.Name }
             })
             .ToListAsync();
 
@@ -69,13 +74,25 @@ public class AssignmentsController : ControllerBase
     public async Task<IActionResult> GetById(Guid id)
     {
         var assignment = await _db.Assignments
-            .Include(a => a.Subject)
-            .Include(a => a.Teacher)
-            .FirstOrDefaultAsync(a => a.Id == id);
+            .Where(a => a.Id == id)
+            .Select(a => new AssignmentDto
+            {
+                Id = a.Id,
+                Title = a.Title,
+                Description = a.Description,
+                StartDate = a.StartDate,
+                EndDate = a.EndDate,
+                MaxMarks = a.MaxMarks,
+                Status = a.Status.ToString(),
+                Subject = a.Subject == null ? null : new AssignmentSubjectDto { Id = a.Subject.Id, Name = a.Subject.Name },
+                Teacher = a.Teacher == null ? null : new AssignmentTeacherDto { Id = a.Teacher.Id, Name = a.Teacher.Name }
+            })
+            .FirstOrDefaultAsync();
+
         return assignment is null ? NotFound() : Ok(assignment);
     }
 
-    /// <summary>Create a new assignment (Teacher only).</summary>
+    /// <summary>Create a new assignment (Teacher/Admin only). Saved as Draft.</summary>
     [HttpPost]
     [Authorize(Roles = "Teacher,Admin")]
     public async Task<IActionResult> Create([FromBody] CreateAssignmentRequest request)
@@ -96,7 +113,8 @@ public class AssignmentsController : ControllerBase
         };
         _db.Assignments.Add(assignment);
         await _db.SaveChangesAsync();
-        return CreatedAtAction(nameof(GetById), new { id = assignment.Id }, assignment);
+
+        return CreatedAtAction(nameof(GetById), new { id = assignment.Id }, new { assignment.Id, assignment.Title, assignment.Status });
     }
 
     /// <summary>Publish an assignment (Teacher/Admin only).</summary>
@@ -142,18 +160,75 @@ public class AssignmentsController : ControllerBase
         return NoContent();
     }
 
-    /// <summary>Get all submissions for an assignment (Teacher/Admin only).</summary>
+    /// <summary>Get all submissions for an assignment (Teacher/Admin only) — projected to avoid cycles.</summary>
     [HttpGet("{id:guid}/submissions")]
     [Authorize(Roles = "Teacher,Admin")]
     public async Task<IActionResult> GetSubmissions(Guid id)
     {
         var submissions = await _db.Submissions
-            .Include(s => s.Student)
             .Where(s => s.AssignmentId == id)
+            .Select(s => new SubmissionDto
+            {
+                Id = s.Id,
+                AssignmentId = s.AssignmentId,
+                StudentId = s.StudentId,
+                StudentName = s.Student != null ? s.Student.Name : null,
+                StudentEmail = s.Student != null ? s.Student.Email : null,
+                AnswerText = s.AnswerText,
+                AttachmentFileUrl = s.AttachmentFileUrl,
+                Status = s.Status.ToString(),
+                MarksAwarded = s.MarksAwarded,
+                Feedback = s.Feedback,
+                SubmittedAt = s.SubmittedAt
+            })
+            .OrderByDescending(s => s.SubmittedAt)
             .ToListAsync();
+
         return Ok(submissions);
     }
 }
 
+// ─── DTOs ──────────────────────────────────────────────────────────────────────
+public class AssignmentDto
+{
+    public Guid Id { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public DateTime StartDate { get; set; }
+    public DateTime EndDate { get; set; }
+    public int MaxMarks { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public AssignmentSubjectDto? Subject { get; set; }
+    public AssignmentTeacherDto? Teacher { get; set; }
+}
+
+public class AssignmentSubjectDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+}
+
+public class AssignmentTeacherDto
+{
+    public Guid Id { get; set; }
+    public string? Name { get; set; }
+}
+
+public class SubmissionDto
+{
+    public Guid Id { get; set; }
+    public Guid AssignmentId { get; set; }
+    public Guid StudentId { get; set; }
+    public string? StudentName { get; set; }
+    public string? StudentEmail { get; set; }
+    public string? AnswerText { get; set; }
+    public string? AttachmentFileUrl { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public int? MarksAwarded { get; set; }
+    public string? Feedback { get; set; }
+    public DateTime SubmittedAt { get; set; }
+}
+
+// ─── Request records ──────────────────────────────────────────────────────────
 public record CreateAssignmentRequest(string Title, string Description, DateTime StartDate, DateTime EndDate, int MaxMarks, Guid SubjectId);
 public record UpdateAssignmentRequest(string? Title, string? Description, DateTime? EndDate, int? MaxMarks);

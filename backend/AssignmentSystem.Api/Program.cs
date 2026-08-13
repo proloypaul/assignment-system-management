@@ -107,7 +107,16 @@ builder.Services
     });
 
 // ─── Controllers ───────────────────────────────────────────────────────────
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        // Safety net: break any remaining circular navigation reference cycles.
+        // Primary fix is DTO projections in each controller; this is the fallback.
+        options.JsonSerializerOptions.ReferenceHandler =
+            System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+        options.JsonSerializerOptions.DefaultIgnoreCondition =
+            System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
+    });
 
 // ─── Swagger / OpenAPI ─────────────────────────────────────────────────────
 builder.Services.AddEndpointsApiExplorer();

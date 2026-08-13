@@ -17,13 +17,33 @@ public class CoursesController : ControllerBase
 
     public CoursesController(ApplicationDbContext db) => _db = db;
 
-    /// <summary>Get all courses.</summary>
+    /// <summary>Get all courses with their subjects projected to avoid circular refs.</summary>
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
         var courses = await _db.Courses
             .Include(c => c.Subjects)
+            .OrderByDescending(c => c.CreatedAt)
+            .Select(c => new CourseDto
+            {
+                Id = c.Id,
+                Name = c.Name,
+                Code = c.Code,
+                Description = c.Description,
+                Capacity = c.Capacity,
+                IsActive = c.IsActive,
+                StartDate = c.StartDate,
+                EndDate = c.EndDate,
+                Subjects = c.Subjects.Select(s => new SubjectSummaryDto
+                {
+                    Id = s.Id,
+                    Name = s.Name,
+                    Code = s.Code,
+                    Credits = s.Credits
+                }).ToList()
+            })
             .ToListAsync();
+
         return Ok(courses);
     }
 
@@ -31,7 +51,29 @@ public class CoursesController : ControllerBase
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(Guid id)
     {
-        var course = await _db.Courses.Include(c => c.Subjects).FirstOrDefaultAsync(c => c.Id == id);
+        var course = await _db.Courses
+            .Include(c => c.Subjects)
+            .Where(c => c.Id == id)
+            .Select(c => new CourseDto
+            {
+                Id = c.Id,
+                Name = c.Name,
+                Code = c.Code,
+                Description = c.Description,
+                Capacity = c.Capacity,
+                IsActive = c.IsActive,
+                StartDate = c.StartDate,
+                EndDate = c.EndDate,
+                Subjects = c.Subjects.Select(s => new SubjectSummaryDto
+                {
+                    Id = s.Id,
+                    Name = s.Name,
+                    Code = s.Code,
+                    Credits = s.Credits
+                }).ToList()
+            })
+            .FirstOrDefaultAsync();
+
         return course is null ? NotFound() : Ok(course);
     }
 
@@ -52,7 +94,21 @@ public class CoursesController : ControllerBase
         };
         _db.Courses.Add(course);
         await _db.SaveChangesAsync();
-        return CreatedAtAction(nameof(GetById), new { id = course.Id }, course);
+
+        var dto = new CourseDto
+        {
+            Id = course.Id,
+            Name = course.Name,
+            Code = course.Code,
+            Description = course.Description,
+            Capacity = course.Capacity,
+            IsActive = course.IsActive,
+            StartDate = course.StartDate,
+            EndDate = course.EndDate,
+            Subjects = []
+        };
+
+        return CreatedAtAction(nameof(GetById), new { id = course.Id }, dto);
     }
 
     /// <summary>Update a course (Admin only).</summary>
@@ -84,6 +140,7 @@ public class CoursesController : ControllerBase
         await _db.SaveChangesAsync();
         return NoContent();
     }
+
     /// <summary>Enroll a student in a course (Admin only).</summary>
     [HttpPost("{id:guid}/enroll-student")]
     [Authorize(Roles = "Admin")]
@@ -97,7 +154,7 @@ public class CoursesController : ControllerBase
 
         var existing = await _db.Set<CourseEnrollment>()
             .FirstOrDefaultAsync(ce => ce.CourseId == id && ce.StudentId == request.StudentId);
-            
+
         if (existing is not null)
             return Conflict(new { message = "Student is already enrolled in this course." });
 
@@ -115,6 +172,29 @@ public class CoursesController : ControllerBase
     }
 }
 
+// ─── DTOs ──────────────────────────────────────────────────────────────────────
+public class CourseDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public int Capacity { get; set; }
+    public bool IsActive { get; set; }
+    public DateTime StartDate { get; set; }
+    public DateTime EndDate { get; set; }
+    public List<SubjectSummaryDto> Subjects { get; set; } = [];
+}
+
+public class SubjectSummaryDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Code { get; set; }
+    public int Credits { get; set; }
+}
+
+// ─── Request records ──────────────────────────────────────────────────────────
 public record CreateCourseRequest(string Name, string Code, string Description, int Capacity, DateTime StartDate, DateTime EndDate);
 public record UpdateCourseRequest(string? Name, string? Description, int? Capacity, bool? IsActive);
 public record EnrollStudentRequest(Guid StudentId);

@@ -17,11 +17,25 @@ public class SubjectsController : ControllerBase
 
     public SubjectsController(ApplicationDbContext db) => _db = db;
 
-    /// <summary>Get all subjects.</summary>
+    /// <summary>Get all subjects projected to DTO to avoid circular refs.</summary>
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
-        var subjects = await _db.Subjects.Include(s => s.Course).ToListAsync();
+        var subjects = await _db.Subjects
+            .Include(s => s.Course)
+            .OrderBy(s => s.Name)
+            .Select(s => new SubjectDto
+            {
+                Id = s.Id,
+                Name = s.Name,
+                Code = s.Code,
+                Credits = s.Credits,
+                SyllabusUrl = s.SyllabusUrl,
+                CourseId = s.CourseId,
+                CourseName = s.Course != null ? s.Course.Name : null
+            })
+            .ToListAsync();
+
         return Ok(subjects);
     }
 
@@ -29,7 +43,21 @@ public class SubjectsController : ControllerBase
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(Guid id)
     {
-        var subject = await _db.Subjects.Include(s => s.Course).FirstOrDefaultAsync(s => s.Id == id);
+        var subject = await _db.Subjects
+            .Include(s => s.Course)
+            .Where(s => s.Id == id)
+            .Select(s => new SubjectDto
+            {
+                Id = s.Id,
+                Name = s.Name,
+                Code = s.Code,
+                Credits = s.Credits,
+                SyllabusUrl = s.SyllabusUrl,
+                CourseId = s.CourseId,
+                CourseName = s.Course != null ? s.Course.Name : null
+            })
+            .FirstOrDefaultAsync();
+
         return subject is null ? NotFound() : Ok(subject);
     }
 
@@ -48,7 +76,18 @@ public class SubjectsController : ControllerBase
         };
         _db.Subjects.Add(subject);
         await _db.SaveChangesAsync();
-        return CreatedAtAction(nameof(GetById), new { id = subject.Id }, subject);
+
+        var dto = new SubjectDto
+        {
+            Id = subject.Id,
+            Name = subject.Name,
+            Code = subject.Code,
+            Credits = subject.Credits,
+            SyllabusUrl = subject.SyllabusUrl,
+            CourseId = subject.CourseId
+        };
+
+        return CreatedAtAction(nameof(GetById), new { id = subject.Id }, dto);
     }
 
     /// <summary>Update a subject (Admin only).</summary>
@@ -91,27 +130,37 @@ public class SubjectsController : ControllerBase
         var teacher = await _db.Users.FindAsync(request.TeacherId);
         if (teacher is null) return NotFound("Teacher not found.");
 
-        // In a real app we'd verify the user is actually in the "Teacher" role.
         var existing = await _db.Set<TeacherSubjectAssignment>()
             .FirstOrDefaultAsync(ts => ts.SubjectId == id && ts.TeacherId == request.TeacherId);
-            
+
         if (existing is not null)
             return Conflict(new { message = "Teacher is already assigned to this subject." });
 
-        var assignment = new TeacherSubjectAssignment
+        _db.Set<TeacherSubjectAssignment>().Add(new TeacherSubjectAssignment
         {
             SubjectId = id,
             TeacherId = request.TeacherId,
             AssignedDate = DateTime.UtcNow
-        };
-
-        _db.Set<TeacherSubjectAssignment>().Add(assignment);
+        });
         await _db.SaveChangesAsync();
 
         return Ok(new { message = "Teacher assigned successfully." });
     }
 }
 
+// ─── DTOs ──────────────────────────────────────────────────────────────────────
+public class SubjectDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Code { get; set; }
+    public int Credits { get; set; }
+    public string? SyllabusUrl { get; set; }
+    public Guid CourseId { get; set; }
+    public string? CourseName { get; set; }
+}
+
+// ─── Request records ──────────────────────────────────────────────────────────
 public record CreateSubjectRequest(string Name, string Code, int Credits, string? SyllabusUrl, Guid CourseId);
 public record UpdateSubjectRequest(string? Name, int? Credits, string? SyllabusUrl);
 public record AssignTeacherRequest(Guid TeacherId);

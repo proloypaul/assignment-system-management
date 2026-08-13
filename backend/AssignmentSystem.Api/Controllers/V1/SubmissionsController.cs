@@ -24,10 +24,7 @@ public class SubmissionsController : ControllerBase
         _currentUser = currentUser;
     }
 
-    /// <summary>
-    /// Submit an answer for an assignment (Student only).
-    /// Returns 202 Accepted immediately; background processing updates the status.
-    /// </summary>
+    /// <summary>Submit an assignment answer with optional PDF attachment (Student only).</summary>
     [HttpPost("{assignmentId:guid}")]
     [Authorize(Roles = "Student")]
     public async Task<IActionResult> Submit(Guid assignmentId, [FromForm] SubmitRequest request)
@@ -52,21 +49,20 @@ public class SubmissionsController : ControllerBase
         {
             if (request.File.ContentType != "application/pdf")
                 return BadRequest(new { message = "Only PDF files are allowed." });
-                
+
             var uploadPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "submissions");
             if (!Directory.Exists(uploadPath))
                 Directory.CreateDirectory(uploadPath);
 
-            var fileName = $"{Guid.NewGuid()}_{request.File.FileName}";
+            var fileName = $"{Guid.NewGuid()}_{Path.GetFileName(request.File.FileName)}";
             var filePath = Path.Combine(uploadPath, fileName);
 
-            using (var stream = new FileStream(filePath, FileMode.Create))
+            await using (var stream = new FileStream(filePath, FileMode.Create))
             {
                 await request.File.CopyToAsync(stream);
             }
 
-            var requestUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
-            attachmentUrl = $"{requestUrl}/uploads/submissions/{fileName}";
+            attachmentUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}/uploads/submissions/{fileName}";
         }
 
         var submission = new Submission
@@ -76,16 +72,21 @@ public class SubmissionsController : ControllerBase
             AnswerText = request.AnswerText,
             AttachmentFileUrl = attachmentUrl,
             SubmittedAt = DateTime.UtcNow,
-            Status = SubmissionStatus.Submitted 
+            Status = SubmissionStatus.Submitted
         };
 
         _db.Submissions.Add(submission);
         await _db.SaveChangesAsync();
 
-        return Accepted(new { submissionId = submission.Id, status = submission.Status.ToString(), attachmentUrl });
+        return Accepted(new
+        {
+            submissionId = submission.Id,
+            status = submission.Status.ToString(),
+            attachmentUrl
+        });
     }
 
-    /// <summary>Get all submissions made by the current student.</summary>
+    /// <summary>Get all submissions made by the current student — projected to DTO.</summary>
     [HttpGet("my")]
     [Authorize(Roles = "Student")]
     public async Task<IActionResult> GetMySubmissions()
@@ -94,34 +95,49 @@ public class SubmissionsController : ControllerBase
         if (!studentId.HasValue) return Unauthorized();
 
         var submissions = await _db.Submissions
-            .Include(s => s.Assignment)
             .Where(s => s.StudentId == studentId.Value)
             .OrderByDescending(s => s.SubmittedAt)
-            .Select(s => new
+            .Select(s => new MySubmissionDto
             {
-                s.Id,
-                s.AssignmentId,
-                AssignmentTitle = s.Assignment.Title,
-                s.AnswerText,
-                s.AttachmentFileUrl,
-                s.Status,
-                s.MarksAwarded,
-                s.Feedback,
-                s.SubmittedAt
+                Id = s.Id,
+                AssignmentId = s.AssignmentId,
+                AssignmentTitle = s.Assignment != null ? s.Assignment.Title : null,
+                AnswerText = s.AnswerText,
+                AttachmentFileUrl = s.AttachmentFileUrl,
+                Status = s.Status.ToString(),
+                MarksAwarded = s.MarksAwarded,
+                Feedback = s.Feedback,
+                SubmittedAt = s.SubmittedAt
             })
             .ToListAsync();
 
         return Ok(submissions);
     }
 
-    /// <summary>Get a student's own submission for an assignment.</summary>
+    /// <summary>Get a student's own submission for a specific assignment.</summary>
     [HttpGet("{assignmentId:guid}/my")]
     [Authorize(Roles = "Student")]
     public async Task<IActionResult> GetMySubmission(Guid assignmentId)
     {
         var studentId = _currentUser.UserId;
+        if (!studentId.HasValue) return Unauthorized();
+
         var submission = await _db.Submissions
-            .FirstOrDefaultAsync(s => s.AssignmentId == assignmentId && s.StudentId == studentId);
+            .Where(s => s.AssignmentId == assignmentId && s.StudentId == studentId.Value)
+            .Select(s => new MySubmissionDto
+            {
+                Id = s.Id,
+                AssignmentId = s.AssignmentId,
+                AssignmentTitle = s.Assignment != null ? s.Assignment.Title : null,
+                AnswerText = s.AnswerText,
+                AttachmentFileUrl = s.AttachmentFileUrl,
+                Status = s.Status.ToString(),
+                MarksAwarded = s.MarksAwarded,
+                Feedback = s.Feedback,
+                SubmittedAt = s.SubmittedAt
+            })
+            .FirstOrDefaultAsync();
+
         return submission is null ? NotFound() : Ok(submission);
     }
 
@@ -142,9 +158,25 @@ public class SubmissionsController : ControllerBase
     }
 }
 
+// ─── DTOs ──────────────────────────────────────────────────────────────────────
+public class MySubmissionDto
+{
+    public Guid Id { get; set; }
+    public Guid AssignmentId { get; set; }
+    public string? AssignmentTitle { get; set; }
+    public string? AnswerText { get; set; }
+    public string? AttachmentFileUrl { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public int? MarksAwarded { get; set; }
+    public string? Feedback { get; set; }
+    public DateTime SubmittedAt { get; set; }
+}
+
+// ─── Request types ────────────────────────────────────────────────────────────
 public class SubmitRequest
 {
     public string? AnswerText { get; set; }
     public IFormFile? File { get; set; }
 }
+
 public record GradeRequest(int MarksAwarded, string? Feedback);
