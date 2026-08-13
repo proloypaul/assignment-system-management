@@ -1,4 +1,5 @@
 using Asp.Versioning;
+using AssignmentSystem.Application.Common.Interfaces;
 using AssignmentSystem.Domain.Entities;
 using AssignmentSystem.Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
@@ -14,15 +15,34 @@ namespace AssignmentSystem.Api.Controllers.V1;
 public class SubjectsController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
+    private readonly ICurrentUserService _currentUser;
 
-    public SubjectsController(ApplicationDbContext db) => _db = db;
+    public SubjectsController(ApplicationDbContext db, ICurrentUserService currentUser)
+    {
+        _db = db;
+        _currentUser = currentUser;
+    }
 
     /// <summary>Get all subjects projected to DTO to avoid circular refs.</summary>
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
-        var subjects = await _db.Subjects
+        var query = _db.Subjects
             .Include(s => s.Course)
+            .Include(s => s.Teachers)
+                .ThenInclude(ta => ta.Teacher)
+            .AsQueryable();
+
+        if (User.IsInRole("Teacher"))
+        {
+            var teacherId = _currentUser.UserId;
+            if (teacherId.HasValue)
+            {
+                query = query.Where(s => s.Teachers.Any(t => t.TeacherId == teacherId.Value));
+            }
+        }
+
+        var subjects = await query
             .OrderBy(s => s.Name)
             .Select(s => new SubjectDto
             {
@@ -32,7 +52,9 @@ public class SubjectsController : ControllerBase
                 Credits = s.Credits,
                 SyllabusUrl = s.SyllabusUrl,
                 CourseId = s.CourseId,
-                CourseName = s.Course != null ? s.Course.Name : null
+                CourseName = s.Course != null ? s.Course.Name : null,
+                CourseCode = s.Course != null ? s.Course.Code : null,
+                TeacherNames = s.Teachers.Select(ta => ta.Teacher.Name!).ToList()
             })
             .ToListAsync();
 
@@ -45,6 +67,8 @@ public class SubjectsController : ControllerBase
     {
         var subject = await _db.Subjects
             .Include(s => s.Course)
+            .Include(s => s.Teachers)
+                .ThenInclude(ta => ta.Teacher)
             .Where(s => s.Id == id)
             .Select(s => new SubjectDto
             {
@@ -54,7 +78,9 @@ public class SubjectsController : ControllerBase
                 Credits = s.Credits,
                 SyllabusUrl = s.SyllabusUrl,
                 CourseId = s.CourseId,
-                CourseName = s.Course != null ? s.Course.Name : null
+                CourseName = s.Course != null ? s.Course.Name : null,
+                CourseCode = s.Course != null ? s.Course.Code : null,
+                TeacherNames = s.Teachers.Select(ta => ta.Teacher.Name!).ToList()
             })
             .FirstOrDefaultAsync();
 
@@ -130,11 +156,14 @@ public class SubjectsController : ControllerBase
         var teacher = await _db.Users.FindAsync(request.TeacherId);
         if (teacher is null) return NotFound("Teacher not found.");
 
-        var existing = await _db.Set<TeacherSubjectAssignment>()
-            .FirstOrDefaultAsync(ts => ts.SubjectId == id && ts.TeacherId == request.TeacherId);
+        var existingAssignments = await _db.Set<TeacherSubjectAssignment>()
+            .Where(ts => ts.SubjectId == id)
+            .ToListAsync();
 
-        if (existing is not null)
-            return Conflict(new { message = "Teacher is already assigned to this subject." });
+        if (existingAssignments.Any())
+        {
+            _db.Set<TeacherSubjectAssignment>().RemoveRange(existingAssignments);
+        }
 
         _db.Set<TeacherSubjectAssignment>().Add(new TeacherSubjectAssignment
         {
@@ -158,6 +187,8 @@ public class SubjectDto
     public string? SyllabusUrl { get; set; }
     public Guid CourseId { get; set; }
     public string? CourseName { get; set; }
+    public string? CourseCode { get; set; }
+    public List<string> TeacherNames { get; set; } = new();
 }
 
 // ─── Request records ──────────────────────────────────────────────────────────

@@ -14,6 +14,7 @@ import { Modal } from '@/components/ui/Modal';
 import { useForm } from 'react-hook-form';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { useAuthStore } from '@/store/authStore';
 
 export default function TeacherSubmissionsPage() {
   const { id: assignmentId } = useParams() as { id: string };
@@ -22,6 +23,8 @@ export default function TeacherSubmissionsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === 'Admin';
 
   const { data: assignment } = useQuery({
     queryKey: queryKeys.assignments.detail(assignmentId),
@@ -60,7 +63,7 @@ export default function TeacherSubmissionsPage() {
     gradeMutation.mutate(data);
   };
 
-  const columns: Column<Submission>[] = [
+  const baseColumns: Column<Submission>[] = [
     {
       header: 'Student Name',
       cell: (item) => <span className="font-medium">{item.student?.name}</span>,
@@ -95,10 +98,14 @@ export default function TeacherSubmissionsPage() {
       cell: (item) => item.marksAwarded !== null && item.marksAwarded !== undefined 
         ? `${item.marksAwarded} / ${assignment?.maxMarks}` 
         : '-',
-    },
+    }
+  ];
+
+  const columns = isAdmin ? baseColumns : [
+    ...baseColumns,
     {
       header: 'Action',
-      cell: (item) => (
+      cell: (item: Submission) => (
         <Button size="sm" onClick={() => {
           setSelectedSubmissionId(item.id);
           setIsModalOpen(true);
@@ -106,7 +113,7 @@ export default function TeacherSubmissionsPage() {
           {item.status === 'Graded' ? 'Update Grade' : 'Grade'}
         </Button>
       ),
-    },
+    }
   ];
 
   return (
@@ -115,7 +122,7 @@ export default function TeacherSubmissionsPage() {
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
-              <Button variant="outline" size="sm" onClick={() => router.push('/teacher/assignments')} className="mb-4">
+              <Button variant="outline" size="sm" onClick={() => router.push(isAdmin ? '/admin/assignments' : '/teacher/assignments')} className="mb-4">
                 &larr; Back to Assignments
               </Button>
               <h2 className="text-2xl font-bold tracking-tight text-foreground">

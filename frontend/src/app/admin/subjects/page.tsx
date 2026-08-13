@@ -173,6 +173,24 @@ export default function AdminSubjectsPage() {
       accessorKey: 'name',
     },
     {
+      header: 'Course',
+      cell: (item) => (
+        <span>
+          {item.courseName} {item.courseCode ? `(${item.courseCode})` : ''}
+        </span>
+      ),
+    },
+    {
+      header: 'Assigned Teachers',
+      cell: (item) => (
+        <span>
+          {item.teacherNames && item.teacherNames.length > 0 
+            ? item.teacherNames.join(', ') 
+            : <span className="text-muted-foreground italic">None</span>}
+        </span>
+      ),
+    },
+    {
       header: 'Action',
       cell: (item) => (
         <div className="flex items-center gap-2">

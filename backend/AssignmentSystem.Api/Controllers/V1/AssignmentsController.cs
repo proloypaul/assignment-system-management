@@ -28,12 +28,11 @@ public class AssignmentsController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
     {
-        var query = _db.Assignments
-            .Where(a => a.Status == AssignmentStatus.Published);
+        var query = _db.Assignments.AsQueryable();
 
-        // Filter by student enrollment
         if (User.IsInRole("Student"))
         {
+            query = query.Where(a => a.Status == AssignmentStatus.Published);
             var studentId = _currentUser.UserId;
             if (studentId.HasValue)
             {
@@ -44,6 +43,15 @@ public class AssignmentsController : ControllerBase
                 query = query.Where(a => a.Subject != null && enrolledCourseIds.Contains(a.Subject.CourseId));
             }
         }
+        else if (User.IsInRole("Teacher"))
+        {
+            var teacherId = _currentUser.UserId;
+            if (teacherId.HasValue)
+            {
+                query = query.Where(a => a.TeacherId == teacherId.Value);
+            }
+        }
+        // Admins see all assignments, so no filter is needed for them.
 
         var totalCount = await query.CountAsync();
         var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);

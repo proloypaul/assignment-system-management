@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { queryKeys } from '@/lib/queryKeys';
@@ -8,10 +9,12 @@ import { Assignment, PaginatedResponse } from '@/lib/types';
 import DashboardLayout from '@/components/DashboardLayout';
 import AuthGuard from '@/components/AuthGuard';
 import { DataTable, Column } from '@/components/ui/DataTable';
+import { Button } from '@/components/ui/Button';
 
 export default function AdminAssignmentsPage() {
   const [page, setPage] = useState(1);
   const pageSize = 10;
+  const router = useRouter();
 
   const { data, isLoading } = useQuery({
     queryKey: queryKeys.assignments.all(page, pageSize),
@@ -53,6 +56,14 @@ export default function AdminAssignmentsPage() {
         }`}>
           {item.status}
         </span>
+      ),
+    },
+    {
+      header: 'Action',
+      cell: (item) => (
+        <Button size="sm" variant="outline" onClick={() => router.push(`/teacher/assignments/${item.id}/submissions`)}>
+          View Submissions
+        </Button>
       ),
     },
   ];

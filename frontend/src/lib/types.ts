@@ -23,6 +23,8 @@ export interface Subject {
   syllabusUrl?: string;
   courseId: string;
   courseName?: string;
+  courseCode?: string;
+  teacherNames?: string[];
 }
 
 export interface Teacher {
