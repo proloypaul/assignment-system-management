@@ -60,7 +60,11 @@ export interface Submission {
   id: string;
   assignmentId: string;
   assignmentTitle?: string;
+  teacherName?: string;
+  subjectName?: string;
   studentId: string;
+  studentName?: string;
+  studentEmail?: string;
   answerText?: string;
   /** Stored URL of uploaded PDF on the server */
   attachmentFileUrl?: string;

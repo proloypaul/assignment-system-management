@@ -94,7 +94,7 @@ public class AuthController : ControllerBase
             HttpOnly = true,
             Secure = isSecure,
             SameSite = SameSiteMode.Strict,
-            Expires = DateTimeOffset.UtcNow.AddMinutes(15)
+            Expires = DateTimeOffset.UtcNow.AddMinutes(60)
         };
 
         var refreshTokenOptions = new CookieOptions

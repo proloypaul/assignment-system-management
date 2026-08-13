@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { queryKeys } from '@/lib/queryKeys';
@@ -34,6 +35,7 @@ export default function AdminCoursesPage() {
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
 
   const queryClient = useQueryClient();
+  const router = useRouter();
 
   const { data: courses, isLoading } = useQuery({
     queryKey: queryKeys.courses.all(),
@@ -195,6 +197,9 @@ export default function AdminCoursesPage() {
             setIsEnrollModalOpen(true);
           }}>
             Enroll Student
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => router.push(`/admin/courses/${item.id}/enrollments`)}>
+            View Enrollments
           </Button>
           <Button variant="outline" size="sm" onClick={() => handleEdit(item)}>
             <Edit2 className="w-4 h-4" />

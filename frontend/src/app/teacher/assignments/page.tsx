@@ -10,7 +10,7 @@ import AuthGuard from '@/components/AuthGuard';
 import { DataTable, Column } from '@/components/ui/DataTable';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Plus } from 'lucide-react';
+import { Plus, Edit2, Trash2 } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -41,6 +41,7 @@ export default function TeacherAssignmentsPage() {
   const pageSize = 10;
   
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingAssignment, setEditingAssignment] = useState<Assignment | null>(null);
   const queryClient = useQueryClient();
   const router = useRouter();
 
@@ -63,7 +64,7 @@ export default function TeacherAssignmentsPage() {
     }
   });
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<AssignmentFormValues>({
+  const { register, handleSubmit, reset, formState: { errors }, setValue } = useForm<AssignmentFormValues>({
     resolver: zodResolver(assignmentSchema) as any,
   });
 
@@ -82,6 +83,35 @@ export default function TeacherAssignmentsPage() {
     }
   });
 
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string, data: Partial<AssignmentFormValues> }) => {
+      await api.put(`/assignments/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['assignments'] });
+      setIsModalOpen(false);
+      reset();
+      setEditingAssignment(null);
+      toast.success('Assignment updated successfully');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Failed to update assignment');
+    }
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/assignments/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['assignments'] });
+      toast.success('Assignment deleted successfully');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Failed to delete assignment');
+    }
+  });
+
   const publishMutation = useMutation({
     mutationFn: async (id: string) => {
       await api.put(`/assignments/${id}/publish`);
@@ -92,7 +122,34 @@ export default function TeacherAssignmentsPage() {
   });
 
   const onSubmit = (data: AssignmentFormValues) => {
-    createMutation.mutate(data);
+    if (editingAssignment) {
+      updateMutation.mutate({ id: editingAssignment.id, data });
+    } else {
+      createMutation.mutate(data);
+    }
+  };
+
+  const handleEdit = (assignment: Assignment) => {
+    setEditingAssignment(assignment);
+    setValue('title', assignment.title);
+    setValue('description', assignment.description || '');
+    setValue('startDate', assignment.startDate.split('T')[0]);
+    setValue('endDate', assignment.endDate.split('T')[0]);
+    setValue('maxMarks', assignment.maxMarks);
+    setValue('subjectId', assignment.subject?.id || '');
+    setIsModalOpen(true);
+  };
+
+  const handleDelete = (id: string) => {
+    if (window.confirm('Are you sure you want to delete this assignment?')) {
+      deleteMutation.mutate(id);
+    }
+  };
+
+  const openCreateModal = () => {
+    setEditingAssignment(null);
+    reset();
+    setIsModalOpen(true);
   };
 
   const columns: Column<Assignment>[] = [
@@ -128,8 +185,14 @@ export default function TeacherAssignmentsPage() {
               Publish
             </Button>
           )}
-          <Button size="sm" onClick={() => router.push(`/teacher/assignments/${item.id}/submissions`)}>
+          <Button size="sm" variant="outline" onClick={() => router.push(`/teacher/assignments/${item.id}/submissions`)}>
             View Submissions
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => handleEdit(item)}>
+            <Edit2 className="w-4 h-4" />
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => handleDelete(item.id)} className="text-red-600 hover:text-red-700">
+            <Trash2 className="w-4 h-4" />
           </Button>
         </div>
       ),
@@ -147,7 +210,7 @@ export default function TeacherAssignmentsPage() {
                 Manage your assignments.
               </p>
             </div>
-            <Button onClick={() => setIsModalOpen(true)}>
+            <Button onClick={openCreateModal}>
               <Plus className="w-4 h-4 mr-2" />
               Create Assignment
             </Button>
@@ -164,8 +227,8 @@ export default function TeacherAssignmentsPage() {
           />
         </div>
 
-        {/* Create Assignment Modal */}
-        <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Create New Assignment">
+        {/* Create / Edit Assignment Modal */}
+        <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingAssignment ? 'Edit Assignment' : 'Create New Assignment'}>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-4">
             <div>
               <label className="block text-sm font-medium mb-1">Title</label>
@@ -206,8 +269,10 @@ export default function TeacherAssignmentsPage() {
             </div>
             <div className="flex justify-end space-x-2 pt-4">
               <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={createMutation.isPending}>
-                {createMutation.isPending ? 'Creating...' : 'Create Draft'}
+              <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
+                {editingAssignment
+                  ? (updateMutation.isPending ? 'Updating...' : 'Update Assignment')
+                  : (createMutation.isPending ? 'Creating...' : 'Create Draft')}
               </Button>
             </div>
           </form>

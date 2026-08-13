@@ -174,11 +174,18 @@ public class AssignmentsController : ControllerBase
     public async Task<IActionResult> GetSubmissions(Guid id)
     {
         var submissions = await _db.Submissions
+            .Include(s => s.Assignment)
+                .ThenInclude(a => a.Teacher)
+            .Include(s => s.Assignment)
+                .ThenInclude(a => a.Subject)
             .Where(s => s.AssignmentId == id)
             .Select(s => new SubmissionDto
             {
                 Id = s.Id,
                 AssignmentId = s.AssignmentId,
+                AssignmentTitle = s.Assignment.Title,
+                TeacherName = s.Assignment.Teacher != null ? s.Assignment.Teacher.Name : null,
+                SubjectName = s.Assignment.Subject != null ? s.Assignment.Subject.Name : null,
                 StudentId = s.StudentId,
                 StudentName = s.Student != null ? s.Student.Name : null,
                 StudentEmail = s.Student != null ? s.Student.Email : null,
@@ -226,6 +233,9 @@ public class SubmissionDto
 {
     public Guid Id { get; set; }
     public Guid AssignmentId { get; set; }
+    public string? AssignmentTitle { get; set; }
+    public string? TeacherName { get; set; }
+    public string? SubjectName { get; set; }
     public Guid StudentId { get; set; }
     public string? StudentName { get; set; }
     public string? StudentEmail { get; set; }

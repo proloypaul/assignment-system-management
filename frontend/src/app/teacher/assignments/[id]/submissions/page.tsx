@@ -65,8 +65,20 @@ export default function TeacherSubmissionsPage() {
 
   const baseColumns: Column<Submission>[] = [
     {
+      header: 'Assignment',
+      cell: (item) => <span className="font-medium">{item.assignmentTitle || assignment?.title}</span>,
+    },
+    {
+      header: 'Subject',
+      cell: (item) => <span className="text-sm">{item.subjectName || assignment?.subject?.name || 'N/A'}</span>,
+    },
+    {
+      header: 'Teacher',
+      cell: (item) => <span className="text-sm">{item.teacherName || assignment?.teacher?.name || 'N/A'}</span>,
+    },
+    {
       header: 'Student Name',
-      cell: (item) => <span className="font-medium">{item.student?.name}</span>,
+      cell: (item) => <span className="font-bold">{item.studentName || item.student?.name}</span>,
     },
     {
       header: 'Submitted At',

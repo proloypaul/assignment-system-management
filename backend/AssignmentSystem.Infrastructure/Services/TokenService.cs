@@ -33,7 +33,7 @@ public class TokenService : ITokenService
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 
-        var expirationMinutes = int.Parse(_configuration["Jwt__AccessTokenExpirationMinutes"] ?? "15");
+        var expirationMinutes = int.Parse(_configuration["Jwt__AccessTokenExpirationMinutes"] ?? "60");
 
         var token = new JwtSecurityToken(
             issuer: _configuration["Jwt__Issuer"],
