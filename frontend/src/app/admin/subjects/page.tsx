@@ -114,6 +114,7 @@ export default function AdminSubjectsPage() {
       await api.post(`/subjects/${subjectId}/assign-teacher`, { teacherId });
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.subjects.all() });
       setIsAssignModalOpen(false);
       setTeacherId('');
       toast.success('Teacher assigned successfully');

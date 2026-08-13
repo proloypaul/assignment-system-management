@@ -129,6 +129,8 @@ public class CoursesController : ControllerBase
         course.Description = request.Description ?? course.Description;
         course.Capacity = request.Capacity ?? course.Capacity;
         course.IsActive = request.IsActive ?? course.IsActive;
+        course.StartDate = request.StartDate ?? course.StartDate;
+        course.EndDate = request.EndDate ?? course.EndDate;
 
         await _db.SaveChangesAsync();
         return NoContent();
@@ -277,5 +279,5 @@ public class SubjectSummaryDto
 
 // ─── Request records ──────────────────────────────────────────────────────────
 public record CreateCourseRequest(string Name, string Code, string Description, int Capacity, DateTime StartDate, DateTime EndDate);
-public record UpdateCourseRequest(string? Name, string? Description, int? Capacity, bool? IsActive);
+public record UpdateCourseRequest(string? Name, string? Description, int? Capacity, bool? IsActive, DateTime? StartDate, DateTime? EndDate);
 public record EnrollStudentRequest(Guid StudentId);

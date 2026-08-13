@@ -78,7 +78,9 @@ export default function AdminCoursesPage() {
         name: data.name,
         description: data.description,
         capacity: data.capacity,
-        isActive: data.isActive
+        isActive: data.isActive,
+        startDate: data.startDate,
+        endDate: data.endDate,
       });
     },
     onSuccess: () => {
@@ -138,6 +140,8 @@ export default function AdminCoursesPage() {
     setValue('description', course.description || '');
     setValue('capacity', course.capacity);
     setValue('isActive', course.isActive);
+    setValue('startDate', course.startDate?.split('T')[0] || '');
+    setValue('endDate', course.endDate?.split('T')[0] || '');
     setIsModalOpen(true);
   };
 
@@ -267,18 +271,17 @@ export default function AdminCoursesPage() {
               {errors.capacity && <p className="text-sm text-red-500 mt-1">{errors.capacity.message}</p>}
             </div>
             
-            {!editingCourse && (
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Start Date</label>
-                  <Input {...register('startDate')} type="date" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">End Date</label>
-                  <Input {...register('endDate')} type="date" />
-                </div>
+            {/* Dates — shown for create AND edit */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Start Date</label>
+                <Input {...register('startDate')} type="date" />
               </div>
-            )}
+              <div>
+                <label className="block text-sm font-medium mb-1">End Date</label>
+                <Input {...register('endDate')} type="date" />
+              </div>
+            </div>
 
             {editingCourse && (
                <div className="flex items-center gap-2">

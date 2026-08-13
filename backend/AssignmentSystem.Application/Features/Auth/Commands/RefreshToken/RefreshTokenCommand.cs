@@ -4,6 +4,7 @@ using AssignmentSystem.Domain.Entities;
 using RefreshTokenEntity = AssignmentSystem.Domain.Entities.RefreshToken;
 using MediatR;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Configuration;
 
 namespace AssignmentSystem.Application.Features.Auth.Commands.RefreshToken;
 
@@ -13,11 +14,13 @@ public class RefreshTokenCommandHandler : IRequestHandler<RefreshTokenCommand, A
 {
     private readonly UserManager<User> _userManager;
     private readonly ITokenService _tokenService;
+    private readonly IConfiguration _configuration;
 
-    public RefreshTokenCommandHandler(UserManager<User> userManager, ITokenService tokenService)
+    public RefreshTokenCommandHandler(UserManager<User> userManager, ITokenService tokenService, IConfiguration configuration)
     {
         _userManager = userManager;
         _tokenService = tokenService;
+        _configuration = configuration;
     }
 
     public async Task<AuthTokensDto> Handle(RefreshTokenCommand request, CancellationToken cancellationToken)
@@ -55,10 +58,12 @@ public class RefreshTokenCommandHandler : IRequestHandler<RefreshTokenCommand, A
         var newAccessToken = _tokenService.GenerateAccessToken(matchedUser.Id, matchedUser.Email!, role);
         var newRefreshToken = _tokenService.GenerateRefreshToken();
 
+        var refreshTokenExpirationDays = int.Parse(_configuration["Jwt__RefreshTokenExpirationDays"] ?? "7");
+
         matchedUser.RefreshTokens.Add(new RefreshTokenEntity
         {
             Token = newRefreshToken,
-            ExpiresAt = DateTime.UtcNow.AddDays(7),
+            ExpiresAt = DateTime.UtcNow.AddDays(refreshTokenExpirationDays),
             CreatedAt = DateTime.UtcNow
         });
 
