@@ -16,6 +16,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 
 const assignmentSchema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -74,10 +75,10 @@ export default function TeacherAssignmentsPage() {
       queryClient.invalidateQueries({ queryKey: ['assignments'] });
       setIsModalOpen(false);
       reset();
-      alert('Assignment created successfully');
+      toast.success('Assignment created successfully');
     },
     onError: (error: any) => {
-      alert(error.response?.data?.message || 'Failed to create assignment');
+      toast.error(error.response?.data?.message || 'Failed to create assignment');
     }
   });
 

@@ -19,6 +19,10 @@ export interface Subject {
   id: string;
   name: string;
   code?: string;
+  credits: number;
+  syllabusUrl?: string;
+  courseId: string;
+  courseName?: string;
 }
 
 export interface Teacher {

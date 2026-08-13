@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { useForm } from 'react-hook-form';
 import { useParams, useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 
 export default function TeacherSubmissionsPage() {
   const { id: assignmentId } = useParams() as { id: string };
@@ -48,10 +49,10 @@ export default function TeacherSubmissionsPage() {
       queryClient.invalidateQueries({ queryKey: queryKeys.submissions.forAssignment(assignmentId) });
       setIsModalOpen(false);
       reset();
-      alert('Submission graded successfully');
+      toast.success('Submission graded successfully');
     },
     onError: (error: any) => {
-      alert(error.response?.data?.message || 'Failed to grade submission');
+      toast.error(error.response?.data?.message || 'Failed to grade submission');
     }
   });
 

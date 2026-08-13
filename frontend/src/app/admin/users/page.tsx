@@ -10,21 +10,19 @@ import AuthGuard from '@/components/AuthGuard';
 import { DataTable, Column } from '@/components/ui/DataTable';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Search, Plus, Loader2 } from 'lucide-react';
+import { Search, Plus, Loader2, Edit2, Trash2 } from 'lucide-react';
 import { useDebounce } from '@/hooks/useDebounce';
 import { Modal } from '@/components/ui/Modal';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
+import { toast } from 'sonner';
 
-const userSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
-  role: z.enum(['Admin', 'Teacher', 'Student']),
-});
-
-type UserFormValues = z.infer<typeof userSchema>;
+type UserFormValues = {
+  name: string;
+  email: string;
+  password?: string;
+  role: 'Admin' | 'Teacher' | 'Student';
+  phoneNumber?: string;
+};
 
 export default function AdminUsersPage() {
   const [page, setPage] = useState(1);
@@ -36,6 +34,8 @@ export default function AdminUsersPage() {
   const [roleFilter, setRoleFilter] = useState('');
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
+  
   const queryClient = useQueryClient();
 
   const { data, isLoading, isFetching } = useQuery({
@@ -53,30 +53,100 @@ export default function AdminUsersPage() {
     }
   });
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<UserFormValues>({
-    resolver: zodResolver(userSchema),
+  const { register, handleSubmit, reset, formState: { errors }, setValue } = useForm<UserFormValues>({
     defaultValues: {
-      role: 'Student'
+      role: 'Student',
+      email: '',
+      name: '',
+      password: '',
+      phoneNumber: ''
     }
   });
 
   const createUserMutation = useMutation({
     mutationFn: async (data: UserFormValues) => {
-      await api.post('/auth/register', data);
+      await api.post('/users', {
+        name: data.name,
+        email: data.email,
+        password: data.password,
+        role: data.role,
+        phone: data.phoneNumber
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
       setIsModalOpen(false);
       reset();
-      alert('User created successfully');
+      toast.success('User created successfully');
     },
     onError: (error: any) => {
-      alert(error.response?.data?.message || 'Failed to create user');
+      toast.error(error.response?.data?.message || 'Failed to create user');
+    }
+  });
+
+  const updateUserMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string, data: Partial<UserFormValues> }) => {
+      await api.put(`/users/${id}`, {
+        name: data.name,
+        phone: data.phoneNumber
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      setIsModalOpen(false);
+      reset();
+      setEditingUser(null);
+      toast.success('User updated successfully');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Failed to update user');
+    }
+  });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/users/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      toast.success('User deleted successfully');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Failed to delete user');
     }
   });
 
   const onSubmit = (data: UserFormValues) => {
-    createUserMutation.mutate(data);
+    if (editingUser) {
+      updateUserMutation.mutate({ id: editingUser.id, data });
+    } else {
+      if (!data.password) {
+        toast.error('Password is required for new users');
+        return;
+      }
+      createUserMutation.mutate(data);
+    }
+  };
+
+  const handleEdit = (user: UserProfile) => {
+    setEditingUser(user);
+    setValue('name', user.name);
+    setValue('email', user.email);
+    setValue('phoneNumber', user.phoneNumber || '');
+    setValue('role', (user.role as any) || 'Student');
+    setIsModalOpen(true);
+  };
+
+  const handleDelete = (id: string) => {
+    if (window.confirm('Are you sure you want to delete this user?')) {
+      deleteUserMutation.mutate(id);
+    }
+  };
+
+  const openCreateModal = () => {
+    setEditingUser(null);
+    reset();
+    setIsModalOpen(true);
   };
 
   const columns: Column<UserProfile>[] = [
@@ -109,6 +179,19 @@ export default function AdminUsersPage() {
       header: 'Created',
       cell: (item) => new Date(item.createdAt).toLocaleDateString(),
     },
+    {
+      header: 'Actions',
+      cell: (item) => (
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => handleEdit(item)}>
+            <Edit2 className="w-4 h-4" />
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => handleDelete(item.id)} className="text-red-600 hover:text-red-700">
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        </div>
+      ),
+    }
   ];
 
   return (
@@ -122,7 +205,7 @@ export default function AdminUsersPage() {
                 Manage all registered users in the system.
               </p>
             </div>
-            <Button onClick={() => setIsModalOpen(true)}>
+            <Button onClick={openCreateModal}>
               <Plus className="w-4 h-4 mr-2" />
               Add User
             </Button>
@@ -167,36 +250,48 @@ export default function AdminUsersPage() {
           />
         </div>
 
-        <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Create New User">
+        <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingUser ? 'Edit User' : 'Create New User'}>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-4">
             <div>
               <label className="block text-sm font-medium mb-1">Name</label>
-              <Input {...register('name')} placeholder="Full Name" />
+              <Input {...register('name', { required: 'Name is required' })} placeholder="Full Name" />
               {errors.name && <p className="text-sm text-red-500 mt-1">{errors.name.message}</p>}
             </div>
+            
+            {!editingUser && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Email</label>
+                  <Input {...register('email', { required: 'Email is required' })} type="email" placeholder="user@example.com" />
+                  {errors.email && <p className="text-sm text-red-500 mt-1">{errors.email.message}</p>}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Password</label>
+                  <Input {...register('password')} type="password" placeholder="Password" />
+                  {errors.password && <p className="text-sm text-red-500 mt-1">{errors.password.message}</p>}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Role</label>
+                  <select {...register('role')} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                    <option value="Student">Student</option>
+                    <option value="Teacher">Teacher</option>
+                    <option value="Admin">Admin</option>
+                  </select>
+                </div>
+              </>
+            )}
+            
             <div>
-              <label className="block text-sm font-medium mb-1">Email</label>
-              <Input {...register('email')} type="email" placeholder="user@example.com" />
-              {errors.email && <p className="text-sm text-red-500 mt-1">{errors.email.message}</p>}
+              <label className="block text-sm font-medium mb-1">Phone Number (Optional)</label>
+              <Input {...register('phoneNumber')} placeholder="Phone Number" />
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Password</label>
-              <Input {...register('password')} type="password" placeholder="Password" />
-              {errors.password && <p className="text-sm text-red-500 mt-1">{errors.password.message}</p>}
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Role</label>
-              <select {...register('role')} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
-                <option value="Student">Student</option>
-                <option value="Teacher">Teacher</option>
-                <option value="Admin">Admin</option>
-              </select>
-              {errors.role && <p className="text-sm text-red-500 mt-1">{errors.role.message}</p>}
-            </div>
+
             <div className="flex justify-end space-x-2 pt-4">
               <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={createUserMutation.isPending}>
-                {createUserMutation.isPending ? 'Creating...' : 'Create User'}
+              <Button type="submit" disabled={createUserMutation.isPending || updateUserMutation.isPending}>
+                {editingUser 
+                  ? (updateUserMutation.isPending ? 'Updating...' : 'Update User') 
+                  : (createUserMutation.isPending ? 'Creating...' : 'Create User')}
               </Button>
             </div>
           </form>

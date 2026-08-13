@@ -10,6 +10,7 @@ import AuthGuard from '@/components/AuthGuard';
 import { DataTable, Column } from '@/components/ui/DataTable';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
+import { toast } from 'sonner';
 
 export default function StudentAssignmentsPage() {
   const [page, setPage] = useState(1);
@@ -47,10 +48,10 @@ export default function StudentAssignmentsPage() {
       setIsModalOpen(false);
       setAnswerText('');
       setFile(null);
-      alert('Assignment submitted successfully');
+      toast.success('Assignment submitted successfully');
     },
     onError: (error: any) => {
-      alert(error.response?.data?.message || 'Failed to submit assignment');
+      toast.error(error.response?.data?.message || 'Failed to submit assignment');
     }
   });
 

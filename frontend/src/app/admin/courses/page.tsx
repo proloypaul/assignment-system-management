@@ -4,34 +4,25 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { queryKeys } from '@/lib/queryKeys';
-import { Course } from '@/lib/types';
+import { Course, UserProfile, PaginatedResponse } from '@/lib/types';
 import DashboardLayout from '@/components/DashboardLayout';
 import AuthGuard from '@/components/AuthGuard';
 import { DataTable, Column } from '@/components/ui/DataTable';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Plus } from 'lucide-react';
+import { Plus, Edit2, Trash2 } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-
-const courseSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  code: z.string().min(1, 'Code is required'),
-  description: z.string().min(1, 'Description is required'),
-  capacity: z.coerce.number().int().min(1, 'Capacity must be at least 1'),
-  startDate: z.string().min(1, 'Start date is required'),
-  endDate: z.string().min(1, 'End date is required'),
-});
+import { toast } from 'sonner';
 
 type CourseFormValues = {
   name: string;
-  code: string;
+  code?: string;
   description: string;
   capacity: number;
-  startDate: string;
-  endDate: string;
+  startDate?: string;
+  endDate?: string;
+  isActive?: boolean;
 };
 
 export default function AdminCoursesPage() {
@@ -40,6 +31,8 @@ export default function AdminCoursesPage() {
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [studentId, setStudentId] = useState('');
   
+  const [editingCourse, setEditingCourse] = useState<Course | null>(null);
+
   const queryClient = useQueryClient();
 
   const { data: courses, isLoading } = useQuery({
@@ -50,9 +43,17 @@ export default function AdminCoursesPage() {
     }
   });
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<CourseFormValues>({
-    resolver: zodResolver(courseSchema) as any,
+  const { data: studentsData } = useQuery({
+    queryKey: ['users', 1, 1000, '', 'Student'],
+    queryFn: async () => {
+      const response = await api.get<PaginatedResponse<UserProfile>>('/users', {
+        params: { page: 1, pageSize: 1000, role: 'Student' }
+      });
+      return response.data;
+    }
   });
+
+  const { register, handleSubmit, reset, formState: { errors }, setValue } = useForm<CourseFormValues>();
 
   const createCourseMutation = useMutation({
     mutationFn: async (data: CourseFormValues) => {
@@ -62,10 +63,44 @@ export default function AdminCoursesPage() {
       queryClient.invalidateQueries({ queryKey: queryKeys.courses.all() });
       setIsModalOpen(false);
       reset();
-      alert('Course created successfully');
+      toast.success('Course created successfully');
     },
     onError: (error: any) => {
-      alert(error.response?.data?.message || 'Failed to create course');
+      toast.error(error.response?.data?.message || 'Failed to create course');
+    }
+  });
+
+  const updateCourseMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string, data: Partial<CourseFormValues> }) => {
+      await api.put(`/courses/${id}`, {
+        name: data.name,
+        description: data.description,
+        capacity: data.capacity,
+        isActive: data.isActive
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.courses.all() });
+      setIsModalOpen(false);
+      reset();
+      setEditingCourse(null);
+      toast.success('Course updated successfully');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Failed to update course');
+    }
+  });
+
+  const deleteCourseMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/courses/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.courses.all() });
+      toast.success('Course deleted successfully');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Failed to delete course');
     }
   });
 
@@ -76,15 +111,44 @@ export default function AdminCoursesPage() {
     onSuccess: () => {
       setIsEnrollModalOpen(false);
       setStudentId('');
-      alert('Student enrolled successfully');
+      toast.success('Student enrolled successfully');
     },
     onError: (error: any) => {
-      alert(error.response?.data?.message || 'Failed to enroll student');
+      toast.error(error.response?.data?.message || 'Failed to enroll student');
     }
   });
 
   const onSubmit = (data: CourseFormValues) => {
-    createCourseMutation.mutate(data);
+    if (editingCourse) {
+      updateCourseMutation.mutate({ id: editingCourse.id, data });
+    } else {
+      if (!data.code || !data.startDate || !data.endDate) {
+        toast.error('Code, start date, and end date are required for new courses.');
+        return;
+      }
+      createCourseMutation.mutate(data);
+    }
+  };
+
+  const handleEdit = (course: Course) => {
+    setEditingCourse(course);
+    setValue('name', course.name);
+    setValue('description', course.description || '');
+    setValue('capacity', course.capacity);
+    setValue('isActive', course.isActive);
+    setIsModalOpen(true);
+  };
+
+  const handleDelete = (id: string) => {
+    if (window.confirm('Are you sure you want to delete this course?')) {
+      deleteCourseMutation.mutate(id);
+    }
+  };
+
+  const openCreateModal = () => {
+    setEditingCourse(null);
+    reset();
+    setIsModalOpen(true);
   };
 
   const handleEnroll = (e: React.FormEvent) => {
@@ -125,12 +189,18 @@ export default function AdminCoursesPage() {
     {
       header: 'Action',
       cell: (item) => (
-        <div className="space-x-2">
+        <div className="flex items-center gap-2">
           <Button size="sm" variant="outline" onClick={() => {
             setSelectedCourseId(item.id);
             setIsEnrollModalOpen(true);
           }}>
             Enroll Student
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => handleEdit(item)}>
+            <Edit2 className="w-4 h-4" />
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => handleDelete(item.id)} className="text-red-600 hover:text-red-700">
+            <Trash2 className="w-4 h-4" />
           </Button>
         </div>
       ),
@@ -148,7 +218,7 @@ export default function AdminCoursesPage() {
                 Manage academic courses and enrollments.
               </p>
             </div>
-            <Button onClick={() => setIsModalOpen(true)}>
+            <Button onClick={openCreateModal}>
               <Plus className="w-4 h-4 mr-2" />
               Add Course
             </Button>
@@ -165,45 +235,59 @@ export default function AdminCoursesPage() {
           />
         </div>
 
-        {/* Create Course Modal */}
-        <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Create New Course">
+        {/* Create / Edit Course Modal */}
+        <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingCourse ? 'Edit Course' : 'Create New Course'}>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-4">
             <div>
               <label className="block text-sm font-medium mb-1">Name</label>
-              <Input {...register('name')} placeholder="Course Name" />
+              <Input {...register('name', { required: 'Name is required' })} placeholder="Course Name" />
               {errors.name && <p className="text-sm text-red-500 mt-1">{errors.name.message}</p>}
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Code</label>
-              <Input {...register('code')} placeholder="CS101" />
-              {errors.code && <p className="text-sm text-red-500 mt-1">{errors.code.message}</p>}
-            </div>
+            
+            {!editingCourse && (
+              <div>
+                <label className="block text-sm font-medium mb-1">Code</label>
+                <Input {...register('code')} placeholder="CS101" />
+              </div>
+            )}
+            
             <div>
               <label className="block text-sm font-medium mb-1">Description</label>
-              <Input {...register('description')} placeholder="Description" />
+              <Input {...register('description', { required: 'Description is required' })} placeholder="Description" />
               {errors.description && <p className="text-sm text-red-500 mt-1">{errors.description.message}</p>}
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Capacity</label>
-              <Input {...register('capacity')} type="number" placeholder="50" />
+              <Input {...register('capacity', { required: 'Capacity is required', min: 1 })} type="number" placeholder="50" />
               {errors.capacity && <p className="text-sm text-red-500 mt-1">{errors.capacity.message}</p>}
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Start Date</label>
-                <Input {...register('startDate')} type="date" />
-                {errors.startDate && <p className="text-sm text-red-500 mt-1">{errors.startDate.message}</p>}
+            
+            {!editingCourse && (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Start Date</label>
+                  <Input {...register('startDate')} type="date" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">End Date</label>
+                  <Input {...register('endDate')} type="date" />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">End Date</label>
-                <Input {...register('endDate')} type="date" />
-                {errors.endDate && <p className="text-sm text-red-500 mt-1">{errors.endDate.message}</p>}
-              </div>
-            </div>
+            )}
+
+            {editingCourse && (
+               <div className="flex items-center gap-2">
+                 <input type="checkbox" id="isActive" {...register('isActive')} />
+                 <label htmlFor="isActive" className="text-sm font-medium">Is Active</label>
+               </div>
+            )}
+            
             <div className="flex justify-end space-x-2 pt-4">
               <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={createCourseMutation.isPending}>
-                {createCourseMutation.isPending ? 'Creating...' : 'Create Course'}
+              <Button type="submit" disabled={createCourseMutation.isPending || updateCourseMutation.isPending}>
+                {editingCourse 
+                  ? (updateCourseMutation.isPending ? 'Updating...' : 'Update Course') 
+                  : (createCourseMutation.isPending ? 'Creating...' : 'Create Course')}
               </Button>
             </div>
           </form>
@@ -213,8 +297,18 @@ export default function AdminCoursesPage() {
         <Modal isOpen={isEnrollModalOpen} onClose={() => setIsEnrollModalOpen(false)} title="Enroll Student">
           <form onSubmit={handleEnroll} className="space-y-4 mt-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Student ID (UUID)</label>
-              <Input value={studentId} onChange={e => setStudentId(e.target.value)} placeholder="00000000-0000-0000-0000-000000000000" />
+              <label className="block text-sm font-medium mb-1">Select Student</label>
+              <select 
+                value={studentId} 
+                onChange={e => setStudentId(e.target.value)} 
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                required
+              >
+                <option value="">Choose a student...</option>
+                {studentsData?.items?.map(student => (
+                  <option key={student.id} value={student.id}>{student.name} ({student.email})</option>
+                ))}
+              </select>
             </div>
             <div className="flex justify-end space-x-2 pt-4">
               <Button type="button" variant="outline" onClick={() => setIsEnrollModalOpen(false)}>Cancel</Button>
