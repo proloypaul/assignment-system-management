@@ -37,10 +37,15 @@ export default function AdminCoursesPage() {
   const queryClient = useQueryClient();
   const router = useRouter();
 
-  const { data: courses, isLoading } = useQuery({
-    queryKey: queryKeys.courses.all(),
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+
+  const { data, isLoading } = useQuery({
+    queryKey: queryKeys.courses.all(page, pageSize),
     queryFn: async () => {
-      const response = await api.get<Course[]>('/courses');
+      const response = await api.get<PaginatedResponse<Course>>('/courses', {
+        params: { page, pageSize }
+      });
       return response.data;
     }
   });
@@ -62,7 +67,7 @@ export default function AdminCoursesPage() {
       await api.post('/courses', data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.courses.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.courses.all(page, pageSize) });
       setIsModalOpen(false);
       reset();
       toast.success('Course created successfully');
@@ -84,7 +89,7 @@ export default function AdminCoursesPage() {
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.courses.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.courses.all(page, pageSize) });
       setIsModalOpen(false);
       reset();
       setEditingCourse(null);
@@ -100,7 +105,7 @@ export default function AdminCoursesPage() {
       await api.delete(`/courses/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.courses.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.courses.all(page, pageSize) });
       toast.success('Course deleted successfully');
     },
     onError: (error: any) => {
@@ -234,12 +239,12 @@ export default function AdminCoursesPage() {
           </div>
 
           <DataTable
-            data={courses || []}
+            data={data?.items || []}
             columns={columns}
             isLoading={isLoading}
-            page={1}
-            totalPages={1}
-            onPageChange={() => {}}
+            page={data?.page || 1}
+            totalPages={data?.totalPages || 1}
+            onPageChange={setPage}
             emptyMessage="No courses found."
           />
         </div>

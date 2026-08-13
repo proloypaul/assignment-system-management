@@ -10,11 +10,15 @@ import DashboardLayout from '@/components/DashboardLayout';
 import AuthGuard from '@/components/AuthGuard';
 import { DataTable, Column } from '@/components/ui/DataTable';
 import { Button } from '@/components/ui/Button';
+import { Modal } from '@/components/ui/Modal';
 
 export default function AdminAssignmentsPage() {
   const [page, setPage] = useState(1);
   const pageSize = 10;
   const router = useRouter();
+
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: queryKeys.assignments.all(page, pageSize),
@@ -61,9 +65,17 @@ export default function AdminAssignmentsPage() {
     {
       header: 'Action',
       cell: (item) => (
-        <Button size="sm" variant="outline" onClick={() => router.push(`/teacher/assignments/${item.id}/submissions`)}>
-          View Submissions
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => {
+            setSelectedAssignment(item);
+            setIsDetailsModalOpen(true);
+          }}>
+            View Details
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => router.push(`/teacher/assignments/${item.id}/submissions`)}>
+            View Submissions
+          </Button>
+        </div>
       ),
     },
   ];
@@ -91,6 +103,42 @@ export default function AdminAssignmentsPage() {
             emptyMessage="No assignments found."
           />
         </div>
+
+        {/* Details Modal */}
+        <Modal isOpen={isDetailsModalOpen} onClose={() => setIsDetailsModalOpen(false)} title="Assignment Details">
+          {selectedAssignment && (
+            <div className="space-y-4 mt-4">
+              <div>
+                <h3 className="text-lg font-bold">{selectedAssignment.title}</h3>
+                <p className="text-sm text-muted-foreground">Subject: {selectedAssignment.subject?.name || 'N/A'}</p>
+                <p className="text-sm text-muted-foreground">Teacher: {selectedAssignment.teacher?.name || 'N/A'}</p>
+              </div>
+              <div>
+                <h4 className="font-semibold text-sm">Description</h4>
+                <p className="text-sm whitespace-pre-wrap bg-muted p-3 rounded-md mt-1">
+                  {selectedAssignment.description || 'No description provided.'}
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <h4 className="font-semibold text-sm">Start Date</h4>
+                  <p className="text-sm">{new Date(selectedAssignment.startDate).toLocaleDateString()}</p>
+                </div>
+                <div>
+                  <h4 className="font-semibold text-sm">Deadline</h4>
+                  <p className="text-sm">{new Date(selectedAssignment.endDate).toLocaleString()}</p>
+                </div>
+                <div>
+                  <h4 className="font-semibold text-sm">Max Marks</h4>
+                  <p className="text-sm">{selectedAssignment.maxMarks}</p>
+                </div>
+              </div>
+              <div className="flex justify-end pt-4">
+                <Button onClick={() => setIsDetailsModalOpen(false)}>Close</Button>
+              </div>
+            </div>
+          )}
+        </Modal>
       </DashboardLayout>
     </AuthGuard>
   );

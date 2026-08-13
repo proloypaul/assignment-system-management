@@ -184,12 +184,12 @@ backend/AssignmentSystem.Api/appsettings.Development.json
     "DefaultConnection": "Host=YOUR_DB_HOST;Port=5432;Database=YOUR_DB_NAME;Username=YOUR_DB_USER;Password=YOUR_DB_PASSWORD;SSL Mode=Require;"
   },
   "Jwt__SecretKey": "YourSuperSecretKeyAtLeast32CharactersLong!@#",
-  "Seed__AdminEmail": "admin@example.com",
-  "Seed__AdminPassword": "AdminPassword123!",
-  "Seed__TeacherEmail": "teacher@example.com",
-  "Seed__TeacherPassword": "TeacherPassword123!",
-  "Seed__StudentEmail": "student@example.com",
-  "Seed__StudentPassword": "StudentPassword123!"
+  "Seed__AdminEmail": "******",
+  "Seed__AdminPassword": "****",
+  "Seed__TeacherEmail": "******",
+  "Seed__TeacherPassword": "******",
+  "Seed__StudentEmail": "******",
+  "Seed__StudentPassword": "******"
 }
 ```
 
@@ -209,12 +209,12 @@ backend/AssignmentSystem.Api/appsettings.Development.json
 | `Jwt__RefreshTokenExpirationDays` | Refresh token lifetime in days | `7` |
 | `Cors__AllowedOrigins` | Allowed frontend origin | `http://localhost:3000` |
 | `Cookie__Secure` | Set `true` in production (HTTPS only) | `false` |
-| `Seed__AdminEmail` | Seeded admin account email | `admin@example.com` |
-| `Seed__AdminPassword` | Seeded admin account password | `AdminPassword123!` |
-| `Seed__TeacherEmail` | Seeded teacher account email | `teacher@example.com` |
-| `Seed__TeacherPassword` | Seeded teacher account password | `TeacherPassword123!` |
-| `Seed__StudentEmail` | Seeded student account email | `student@example.com` |
-| `Seed__StudentPassword` | Seeded student account password | `StudentPassword123!` |
+| `Seed__AdminEmail` | Seeded admin account email | `"******"` |
+| `Seed__AdminPassword` | Seeded admin account password | `"******"` |
+| `Seed__TeacherEmail` | Seeded teacher account email | `"******"` |
+| `Seed__TeacherPassword` | Seeded teacher account password | `"******"` |
+| `Seed__StudentEmail` | Seeded student account email | `"******"` |
+| `Seed__StudentPassword` | Seeded student account password | `"******"` |
 
 #### For Production
 
@@ -366,12 +366,4 @@ Swagger documentation is available at `http://localhost:5221/swagger` when runni
 
 ---
 
-## ⚠️ Known Limitations
 
-1. **File storage is local** — Uploaded PDFs are stored on the server's local filesystem (`wwwroot/uploads/`). This is not suitable for scaled/containerized deployments. A cloud storage provider (AWS S3, Azure Blob) should be used in production.
-2. **No email notifications** — The system does not send emails for events like assignment publication, submission grading, or enrollment confirmation.
-3. **No real-time updates** — The UI relies on React Query polling/invalidation. There is no WebSocket or SSE-based real-time push for events like new submissions.
-4. **Single-file submission only** — Students can attach only one PDF per submission. Multiple file attachments are not supported.
-5. **No pagination on Subjects/Courses** — The Subjects and Courses lists are fetched in full without server-side pagination (suitable for small-to-medium datasets).
-6. **Refresh token stored in HttpOnly cookie** — While secure, this requires the backend to be on the same domain (or CORS `withCredentials` must be configured correctly) when deployed to separate origins.
-7. **No test coverage yet** — The test project scaffold exists but no test cases have been written yet.

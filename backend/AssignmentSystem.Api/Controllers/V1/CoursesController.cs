@@ -25,11 +25,20 @@ public class CoursesController : ControllerBase
 
     /// <summary>Get all courses with their subjects projected to avoid circular refs.</summary>
     [HttpGet]
-    public async Task<IActionResult> GetAll()
+    public async Task<IActionResult> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
     {
-        var courses = await _db.Courses
+        var studentId = _currentUser.UserId;
+        var query = _db.Courses.AsQueryable();
+
+        var totalCount = await query.CountAsync();
+        var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+        var courses = await query
             .Include(c => c.Subjects)
+            .Include(c => c.Enrollments)
             .OrderByDescending(c => c.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .Select(c => new CourseDto
             {
                 Id = c.Id,
@@ -40,6 +49,7 @@ public class CoursesController : ControllerBase
                 IsActive = c.IsActive,
                 StartDate = c.StartDate,
                 EndDate = c.EndDate,
+                IsEnrolled = studentId.HasValue ? c.Enrollments.Any(e => e.StudentId == studentId.Value) : false,
                 Subjects = c.Subjects.Select(s => new SubjectSummaryDto
                 {
                     Id = s.Id,
@@ -50,7 +60,7 @@ public class CoursesController : ControllerBase
             })
             .ToListAsync();
 
-        return Ok(courses);
+        return Ok(new { items = courses, totalCount, page, pageSize, totalPages });
     }
 
     /// <summary>Get a course by ID.</summary>
@@ -266,6 +276,7 @@ public class CourseDto
     public bool IsActive { get; set; }
     public DateTime StartDate { get; set; }
     public DateTime EndDate { get; set; }
+    public bool IsEnrolled { get; set; }
     public List<SubjectSummaryDto> Subjects { get; set; } = [];
 }
 

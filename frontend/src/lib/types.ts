@@ -54,6 +54,7 @@ export interface Course {
   isActive: boolean;
   startDate: string;
   endDate: string;
+  isEnrolled?: boolean;
   subjects?: Subject[];
 }
 

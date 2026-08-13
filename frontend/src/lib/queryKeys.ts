@@ -12,9 +12,9 @@ export const queryKeys = {
     forAssignment: (assignmentId: string) => ['submissions', 'assignment', assignmentId] as const,
   },
   courses: {
-    all: () => ['courses', 'all'] as const,
+    all: (page?: number, pageSize?: number) => ['courses', 'all', page ?? 0, pageSize ?? 0] as const,
   },
   subjects: {
-    all: () => ['subjects', 'all'] as const,
+    all: (page?: number, pageSize?: number) => ['subjects', 'all', page ?? 0, pageSize ?? 0] as const,
   },
 };

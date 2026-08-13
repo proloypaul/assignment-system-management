@@ -86,23 +86,48 @@ public class AuthController : ControllerBase
 
     private void SetTokenCookies(string accessToken, string refreshToken)
     {
-        var isSecure = bool.Parse(HttpContext.RequestServices
-            .GetRequiredService<IConfiguration>()["Cookie__Secure"] ?? "false");
+        var config = HttpContext.RequestServices.GetRequiredService<IConfiguration>();
+        var isSecure = bool.Parse(config["Cookie__Secure"] ?? "false");
+        var sameSiteString = config["Cookie__SameSite"] ?? "None";
+        
+        var sameSiteMode = sameSiteString.ToLower() switch
+        {
+            "strict" => SameSiteMode.Strict,
+            "lax" => SameSiteMode.Lax,
+            "none" => SameSiteMode.None,
+            _ => SameSiteMode.None
+        };
+
+        var accessTokenExpirationMinutes =
+        int.TryParse(
+            config["Cookie__AccessTokenExpirationMinutes"],
+            out var accessMinutes
+        )
+            ? accessMinutes
+            : 60;
+
+        var refreshTokenExpirationDays =
+            int.TryParse(
+                config["Cookie__RefreshTokenExpirationDays"],
+                out var refreshDays
+            )
+            ? refreshDays
+            : 7;
 
         var accessTokenOptions = new CookieOptions
         {
             HttpOnly = true,
-            Secure = true, // Required for SameSite=None
-            SameSite = SameSiteMode.None,
-            Expires = DateTimeOffset.UtcNow.AddMinutes(60)
+            Secure = isSecure,
+            SameSite = sameSiteMode,
+            Expires = DateTimeOffset.UtcNow.AddMinutes(accessTokenExpirationMinutes)
         };
 
         var refreshTokenOptions = new CookieOptions
         {
             HttpOnly = true,
-            Secure = true, // Required for SameSite=None
-            SameSite = SameSiteMode.None,
-            Expires = DateTimeOffset.UtcNow.AddDays(7)
+            Secure = isSecure,
+            SameSite = sameSiteMode,
+            Expires = DateTimeOffset.UtcNow.AddDays(refreshTokenExpirationDays)
         };
 
         Response.Cookies.Append("accessToken", accessToken, accessTokenOptions);

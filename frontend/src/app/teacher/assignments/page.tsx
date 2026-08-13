@@ -41,7 +41,9 @@ export default function TeacherAssignmentsPage() {
   const pageSize = 10;
   
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [editingAssignment, setEditingAssignment] = useState<Assignment | null>(null);
+  const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
   const queryClient = useQueryClient();
   const router = useRouter();
 
@@ -56,10 +58,12 @@ export default function TeacherAssignmentsPage() {
     }
   });
 
-  const { data: subjects } = useQuery({
-    queryKey: queryKeys.subjects.all(),
+  const { data: subjectsData } = useQuery({
+    queryKey: queryKeys.subjects.all(1, 1000), // Get all subjects for dropdown
     queryFn: async () => {
-      const response = await api.get<Subject[]>('/subjects');
+      const response = await api.get<PaginatedResponse<Subject>>('/subjects', {
+        params: { page: 1, pageSize: 1000 }
+      });
       return response.data;
     }
   });
@@ -180,6 +184,12 @@ export default function TeacherAssignmentsPage() {
       header: 'Action',
       cell: (item) => (
         <div className="space-x-2">
+          <Button size="sm" variant="outline" onClick={() => {
+            setSelectedAssignment(item);
+            setIsDetailsModalOpen(true);
+          }}>
+            View Details
+          </Button>
           {item.status !== 'Published' && (
             <Button size="sm" variant="outline" onClick={() => publishMutation.mutate(item.id)}>
               Publish
@@ -227,6 +237,42 @@ export default function TeacherAssignmentsPage() {
           />
         </div>
 
+        {/* Details Modal */}
+        <Modal isOpen={isDetailsModalOpen} onClose={() => setIsDetailsModalOpen(false)} title="Assignment Details">
+          {selectedAssignment && (
+            <div className="space-y-4 mt-4">
+              <div>
+                <h3 className="text-lg font-bold">{selectedAssignment.title}</h3>
+                <p className="text-sm text-muted-foreground">Subject: {selectedAssignment.subject?.name || 'N/A'}</p>
+                <p className="text-sm text-muted-foreground">Status: {selectedAssignment.status}</p>
+              </div>
+              <div>
+                <h4 className="font-semibold text-sm">Description</h4>
+                <p className="text-sm whitespace-pre-wrap bg-muted p-3 rounded-md mt-1">
+                  {selectedAssignment.description || 'No description provided.'}
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <h4 className="font-semibold text-sm">Start Date</h4>
+                  <p className="text-sm">{new Date(selectedAssignment.startDate).toLocaleDateString()}</p>
+                </div>
+                <div>
+                  <h4 className="font-semibold text-sm">Deadline</h4>
+                  <p className="text-sm">{new Date(selectedAssignment.endDate).toLocaleString()}</p>
+                </div>
+                <div>
+                  <h4 className="font-semibold text-sm">Max Marks</h4>
+                  <p className="text-sm">{selectedAssignment.maxMarks}</p>
+                </div>
+              </div>
+              <div className="flex justify-end pt-4">
+                <Button onClick={() => setIsDetailsModalOpen(false)}>Close</Button>
+              </div>
+            </div>
+          )}
+        </Modal>
+
         {/* Create / Edit Assignment Modal */}
         <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingAssignment ? 'Edit Assignment' : 'Create New Assignment'}>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-4">
@@ -248,7 +294,7 @@ export default function TeacherAssignmentsPage() {
               <label className="block text-sm font-medium mb-1">Subject</label>
               <select {...register('subjectId')} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
                 <option value="">Select a Subject</option>
-                {subjects?.map(sub => (
+                {subjectsData?.items?.map(sub => (
                   <option key={sub.id} value={sub.id}>{sub.name}</option>
                 ))}
               </select>

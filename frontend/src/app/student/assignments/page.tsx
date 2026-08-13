@@ -18,6 +18,7 @@ export default function StudentAssignmentsPage() {
   const queryClient = useQueryClient();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
   const [answerText, setAnswerText] = useState('');
   const [file, setFile] = useState<File | null>(null);
@@ -84,22 +85,46 @@ export default function StudentAssignmentsPage() {
     },
     {
       header: 'Action',
-      cell: (item) => (
-        item.isSubmitted ? (
-          <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-full">
-            Submitted
-          </span>
-        ) : (
-          <Button size="sm" variant="outline" onClick={() => {
-            setSelectedAssignment(item);
-            setIsModalOpen(true);
-          }}>
-            Submit Work
-          </Button>
-        )
-      ),
+      cell: (item) => {
+        const isPastDeadline = new Date(item.endDate) < new Date();
+        
+        return (
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => {
+              setSelectedAssignment(item);
+              setIsDetailsModalOpen(true);
+            }}>
+              View Details
+            </Button>
+            {item.isSubmitted ? (
+              <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-full">
+                Submitted
+              </span>
+            ) : isPastDeadline ? (
+              <span className="px-2 py-1 text-xs font-medium bg-red-100 text-red-700 rounded-full">
+                Deadline Passed
+              </span>
+            ) : (
+              <Button size="sm" variant="outline" onClick={() => {
+                setSelectedAssignment(item);
+                setIsModalOpen(true);
+              }}>
+                Submit Work
+              </Button>
+            )}
+          </div>
+        );
+      },
     },
   ];
+
+  const getRowClassName = (item: Assignment) => {
+    const isPastDeadline = new Date(item.endDate) < new Date();
+    if (!item.isSubmitted && isPastDeadline) {
+      return 'bg-red-50/50 hover:bg-red-50'; // Light red background for past deadline unsubmitted
+    }
+    return '';
+  };
 
   return (
     <AuthGuard allowedRoles={['Student']}>
@@ -120,8 +145,45 @@ export default function StudentAssignmentsPage() {
             totalPages={data?.totalPages || 1}
             onPageChange={setPage}
             emptyMessage="No assignments available at the moment."
+            rowClassName={getRowClassName}
           />
         </div>
+
+        {/* Details Modal */}
+        <Modal isOpen={isDetailsModalOpen} onClose={() => setIsDetailsModalOpen(false)} title="Assignment Details">
+          {selectedAssignment && (
+            <div className="space-y-4 mt-4">
+              <div>
+                <h3 className="text-lg font-bold">{selectedAssignment.title}</h3>
+                <p className="text-sm text-muted-foreground">Subject: {selectedAssignment.subject?.name || 'N/A'}</p>
+                <p className="text-sm text-muted-foreground">Teacher: {selectedAssignment.teacher?.name || 'N/A'}</p>
+              </div>
+              <div>
+                <h4 className="font-semibold text-sm">Description</h4>
+                <p className="text-sm whitespace-pre-wrap bg-muted p-3 rounded-md mt-1">
+                  {selectedAssignment.description || 'No description provided.'}
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <h4 className="font-semibold text-sm">Start Date</h4>
+                  <p className="text-sm">{new Date(selectedAssignment.startDate).toLocaleDateString()}</p>
+                </div>
+                <div>
+                  <h4 className="font-semibold text-sm">Deadline</h4>
+                  <p className="text-sm">{new Date(selectedAssignment.endDate).toLocaleString()}</p>
+                </div>
+                <div>
+                  <h4 className="font-semibold text-sm">Max Marks</h4>
+                  <p className="text-sm">{selectedAssignment.maxMarks}</p>
+                </div>
+              </div>
+              <div className="flex justify-end pt-4">
+                <Button onClick={() => setIsDetailsModalOpen(false)}>Close</Button>
+              </div>
+            </div>
+          )}
+        </Modal>
 
         {/* Submit Modal */}
         <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={`Submit: ${selectedAssignment?.title}`}>

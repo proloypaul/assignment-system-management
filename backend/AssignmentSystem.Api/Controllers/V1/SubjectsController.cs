@@ -25,7 +25,7 @@ public class SubjectsController : ControllerBase
 
     /// <summary>Get all subjects projected to DTO to avoid circular refs.</summary>
     [HttpGet]
-    public async Task<IActionResult> GetAll()
+    public async Task<IActionResult> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
     {
         var query = _db.Subjects
             .Include(s => s.Course)
@@ -42,8 +42,13 @@ public class SubjectsController : ControllerBase
             }
         }
 
+        var totalCount = await query.CountAsync();
+        var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+
         var subjects = await query
-            .OrderBy(s => s.Name)
+            .OrderByDescending(s => s.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .Select(s => new SubjectDto
             {
                 Id = s.Id,
@@ -58,7 +63,7 @@ public class SubjectsController : ControllerBase
             })
             .ToListAsync();
 
-        return Ok(subjects);
+        return Ok(new { items = subjects, totalCount, page, pageSize, totalPages });
     }
 
     /// <summary>Get a subject by ID.</summary>

@@ -33,18 +33,25 @@ export default function AdminSubjectsPage() {
 
   const queryClient = useQueryClient();
 
-  const { data: subjects, isLoading } = useQuery({
-    queryKey: queryKeys.subjects.all(),
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+
+  const { data, isLoading } = useQuery({
+    queryKey: queryKeys.subjects.all(page, pageSize),
     queryFn: async () => {
-      const response = await api.get<Subject[]>('/subjects');
+      const response = await api.get<PaginatedResponse<Subject>>('/subjects', {
+        params: { page, pageSize }
+      });
       return response.data;
     }
   });
 
-  const { data: courses } = useQuery({
-    queryKey: queryKeys.courses.all(),
+  const { data: coursesData } = useQuery({
+    queryKey: queryKeys.courses.all(1, 1000), // Get all for dropdown
     queryFn: async () => {
-      const response = await api.get<Course[]>('/courses');
+      const response = await api.get<PaginatedResponse<Course>>('/courses', {
+        params: { page: 1, pageSize: 1000 }
+      });
       return response.data;
     }
   });
@@ -66,7 +73,7 @@ export default function AdminSubjectsPage() {
       await api.post('/subjects', data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.subjects.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.subjects.all(page, pageSize) });
       setIsModalOpen(false);
       reset();
       toast.success('Subject created successfully');
@@ -85,7 +92,7 @@ export default function AdminSubjectsPage() {
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.subjects.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.subjects.all(page, pageSize) });
       setIsModalOpen(false);
       reset();
       setEditingSubject(null);
@@ -101,7 +108,7 @@ export default function AdminSubjectsPage() {
       await api.delete(`/subjects/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.subjects.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.subjects.all(page, pageSize) });
       toast.success('Subject deleted successfully');
     },
     onError: (error: any) => {
@@ -114,7 +121,7 @@ export default function AdminSubjectsPage() {
       await api.post(`/subjects/${subjectId}/assign-teacher`, { teacherId });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.subjects.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.subjects.all(page, pageSize) });
       setIsAssignModalOpen(false);
       setTeacherId('');
       toast.success('Teacher assigned successfully');
@@ -230,12 +237,12 @@ export default function AdminSubjectsPage() {
           </div>
 
           <DataTable
-            data={subjects || []}
+            data={data?.items || []}
             columns={columns}
             isLoading={isLoading}
-            page={1}
-            totalPages={1}
-            onPageChange={() => {}}
+            page={data?.page || 1}
+            totalPages={data?.totalPages || 1}
+            onPageChange={setPage}
             emptyMessage="No subjects found."
           />
         </div>
@@ -267,7 +274,7 @@ export default function AdminSubjectsPage() {
                 <label className="block text-sm font-medium mb-1">Course</label>
                 <select {...register('courseId')} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   <option value="">Select a Course</option>
-                  {courses?.map(course => (
+                  {coursesData?.items?.map(course => (
                     <option key={course.id} value={course.id}>{course.name}</option>
                   ))}
                 </select>

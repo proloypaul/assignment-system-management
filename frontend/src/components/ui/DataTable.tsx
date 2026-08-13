@@ -17,6 +17,7 @@ interface DataTableProps<T> {
   totalPages: number;
   onPageChange: (page: number) => void;
   emptyMessage?: string;
+  rowClassName?: (item: T) => string;
 }
 
 export function DataTable<T>({ 
@@ -26,7 +27,8 @@ export function DataTable<T>({
   page, 
   totalPages, 
   onPageChange,
-  emptyMessage = "No results found." 
+  emptyMessage = "No results found.",
+  rowClassName
 }: DataTableProps<T>) {
   
   return (
@@ -58,7 +60,7 @@ export function DataTable<T>({
               </tr>
             ) : (
               data.map((item, rowIdx) => (
-                <tr key={rowIdx} className="hover:bg-muted/30 transition-colors">
+                <tr key={rowIdx} className={`hover:bg-muted/30 transition-colors ${rowClassName ? rowClassName(item) : ''}`}>
                   {columns.map((col, colIdx) => (
                     <td key={colIdx} className="px-6 py-4 whitespace-nowrap">
                       {col.cell ? col.cell(item) : String(item[col.accessorKey as keyof T] || '')}

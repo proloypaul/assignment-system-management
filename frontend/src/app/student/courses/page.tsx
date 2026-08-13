@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { queryKeys } from '@/lib/queryKeys';
-import { Course } from '@/lib/types';
+import { Course, PaginatedResponse } from '@/lib/types';
 import DashboardLayout from '@/components/DashboardLayout';
 import AuthGuard from '@/components/AuthGuard';
 import { DataTable, Column } from '@/components/ui/DataTable';
@@ -16,10 +16,12 @@ export default function StudentCoursesPage() {
   const pageSize = 10;
   const queryClient = useQueryClient();
 
-  const { data: courses, isLoading } = useQuery({
-    queryKey: queryKeys.courses.all(),
+  const { data, isLoading } = useQuery({
+    queryKey: queryKeys.courses.all(page, pageSize),
     queryFn: async () => {
-      const response = await api.get<Course[]>('/courses');
+      const response = await api.get<PaginatedResponse<Course>>('/courses', {
+        params: { page, pageSize }
+      });
       return response.data;
     }
   });
@@ -30,7 +32,7 @@ export default function StudentCoursesPage() {
     },
     onSuccess: () => {
       toast.success('Successfully enrolled in course!');
-      // Invalidate if we start fetching student's enrolled courses somewhere
+      queryClient.invalidateQueries({ queryKey: queryKeys.courses.all(page, pageSize) });
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.message || 'Failed to enroll in course');
@@ -63,6 +65,14 @@ export default function StudentCoursesPage() {
         const endDate = new Date(item.endDate);
         const isActive = now >= startDate && now <= endDate;
         
+        if (item.isEnrolled) {
+          return (
+            <span className="px-3 py-1.5 text-xs font-medium bg-green-100 text-green-700 rounded-md">
+              Enrolled
+            </span>
+          );
+        }
+
         return (
           <Button 
             size="sm" 
@@ -91,11 +101,11 @@ export default function StudentCoursesPage() {
           </div>
 
           <DataTable
-            data={courses || []}
+            data={data?.items || []}
             columns={columns}
             isLoading={isLoading}
-            page={page}
-            totalPages={1}
+            page={data?.page || 1}
+            totalPages={data?.totalPages || 1}
             onPageChange={setPage}
             emptyMessage="No courses available."
           />
