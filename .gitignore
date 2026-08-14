@@ -4,7 +4,7 @@
 # Ignore environment variables
 .env
 .env.*
-.env.example
+!.env.example
 .env.development
 .env.production
 implementation_plans
