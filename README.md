@@ -1,6 +1,6 @@
 # 📚 Assignment Submission System
 
-A full-stack, role-based **Assignment & Submission Management System** built for educational institutions. It supports up to 100,000 users across three roles — **Admin**, **Teacher**, and **Student** — providing a comprehensive platform for managing courses, subjects, assignments, and submissions with PDF attachment support.
+A full-stack, role-based **Assignment & Submission Management System** designed for educational institutions. It provides a centralized platform for A**Admin**, **Teacher**, and **Student** to manage courses, subjects, assignments, and student submissions efficiently, with PDF attachment support for secure and streamlined academic document management.
 
 ---
 
@@ -74,12 +74,11 @@ Authentication is handled via **JWT access tokens** stored in `HttpOnly` cookies
 | Layer | Technology |
 |---|---|
 | Framework | ASP.NET Core 10 Web API |
-| Architecture | Clean Architecture (Domain / Application / Infrastructure / API) |
 | ORM | Entity Framework Core 10 + Npgsql (PostgreSQL) |
 | Auth | ASP.NET Identity + JWT Bearer (HttpOnly cookies) |
 | Mediator | MediatR (CQRS pattern) |
 | API Versioning | Asp.Versioning |
-| Database | PostgreSQL (Neon serverless recommended) |
+| Database | PostgreSQL (Neon serverless) |
 
 ### Frontend
 | Layer | Technology |
@@ -99,10 +98,8 @@ Authentication is handled via **JWT access tokens** stored in `HttpOnly` cookies
 
 ```
 assignment-submission-project/
-├── .env.example                        # Template for backend environment variables
 ├── .gitignore
 ├── README.md
-├── implementation_plans/               # Design documentation
 │
 ├── backend/
 │   ├── AssignmentSystem.slnx           # Solution file
@@ -189,13 +186,15 @@ backend/AssignmentSystem.Api/appsettings.Development.json
   "Seed__TeacherEmail": "******",
   "Seed__TeacherPassword": "******",
   "Seed__StudentEmail": "******",
-  "Seed__StudentPassword": "******"
+  "Seed__StudentPassword": "******",
+  "Cookie__Secure": "false",
+  "Cookie__SameSite": "Lax"
 }
 ```
 
 > **Note:** The base `appsettings.json` already contains these shared values (not secret):
 > ```
-> Jwt__Issuer, Jwt__Audience, Jwt__AccessTokenExpirationMinutes (60), Jwt__RefreshTokenExpirationDays (7), Cors__AllowedOrigins
+> Jwt__Issuer, Jwt__Audience, Jwt__AccessTokenExpirationMinutes, Jwt__RefreshTokenExpirationDays, Cors__AllowedOrigins, Cookie__AccessTokenExpirationMinutes": "130", "Cookie__RefreshTokenExpirationDays
 > ```
 > You only need to override them in your environment-specific file if you want different values.
 
@@ -209,12 +208,12 @@ backend/AssignmentSystem.Api/appsettings.Development.json
 | `Jwt__RefreshTokenExpirationDays` | Refresh token lifetime in days | `7` |
 | `Cors__AllowedOrigins` | Allowed frontend origin | `http://localhost:3000` |
 | `Cookie__Secure` | Set `true` in production (HTTPS only) | `false` |
-| `Seed__AdminEmail` | Seeded admin account email | `"******"` |
-| `Seed__AdminPassword` | Seeded admin account password | `"******"` |
-| `Seed__TeacherEmail` | Seeded teacher account email | `"******"` |
-| `Seed__TeacherPassword` | Seeded teacher account password | `"******"` |
-| `Seed__StudentEmail` | Seeded student account email | `"******"` |
-| `Seed__StudentPassword` | Seeded student account password | `"******"` |
+| `Seed__AdminEmail` | Seeded admin account email |
+| `Seed__AdminPassword` | Seeded admin account password | 
+| `Seed__TeacherEmail` | Seeded teacher account email | 
+| `Seed__TeacherPassword` | Seeded teacher account password | 
+| `Seed__StudentEmail` | Seeded student account email |
+| `Seed__StudentPassword` | Seeded student account password | 
 
 #### For Production
 
@@ -314,9 +313,9 @@ On first startup the backend automatically creates these accounts:
 
 | Role | Email | Password |
 |---|---|---|
-| **Admin** | `admin@example.com` | `AdminPassword123!` |
-| **Teacher** | `teacher@example.com` | `TeacherPassword123!` |
-| **Student** | `student@example.com` | `StudentPassword123!` |
+| **Admin** | `***` | `***` |
+| **Teacher** | `***` | `***` |
+| **Student** | `***` | `***` |
 
 > These credentials are read from `appsettings.Development.json`. You can customize them to anything you prefer.
 

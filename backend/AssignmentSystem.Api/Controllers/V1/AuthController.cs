@@ -104,7 +104,7 @@ public class AuthController : ControllerBase
             out var accessMinutes
         )
             ? accessMinutes
-            : 60;
+            : 130;
 
         var refreshTokenExpirationDays =
             int.TryParse(
