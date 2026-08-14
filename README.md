@@ -181,12 +181,12 @@ backend/AssignmentSystem.Api/appsettings.Development.json
     "DefaultConnection": "Host=YOUR_DB_HOST;Port=5432;Database=YOUR_DB_NAME;Username=YOUR_DB_USER;Password=YOUR_DB_PASSWORD;SSL Mode=Require;"
   },
   "Jwt__SecretKey": "YourSuperSecretKeyAtLeast32CharactersLong!@#",
-  "Seed__AdminEmail": "******",
-  "Seed__AdminPassword": "****",
-  "Seed__TeacherEmail": "******",
-  "Seed__TeacherPassword": "******",
-  "Seed__StudentEmail": "******",
-  "Seed__StudentPassword": "******",
+  "Seed__AdminEmail": "admin@example.com",
+  "Seed__AdminPassword": "AdminPassword123!",
+  "Seed__TeacherEmail": "teacher@example.com",
+  "Seed__TeacherPassword": "TeacherPassword123!",
+  "Seed__StudentEmail": "student@example.com",
+  "Seed__StudentPassword": "StudentPassword123!",
   "Cookie__Secure": "false",
   "Cookie__SameSite": "Lax"
 }
@@ -313,9 +313,9 @@ On first startup the backend automatically creates these accounts:
 
 | Role | Email | Password |
 |---|---|---|
-| **Admin** | `***` | `***` |
-| **Teacher** | `***` | `***` |
-| **Student** | `***` | `***` |
+| **Admin** | `admin@example.com` | `AdminPassword123!` |
+| **Teacher** | `teacher@example.com` | `TeacherPassword123!` |
+| **Student** | `student@example.com` | `StudentPassword123!` |
 
 > These credentials are read from `appsettings.Development.json`. You can customize them to anything you prefer.
 
@@ -364,5 +364,14 @@ Swagger documentation is available at `http://localhost:5221/swagger` when runni
 8. **Auto token refresh** — When an access token expires, the frontend silently calls `/auth/refresh-token` and retries the original request. If the refresh token is also expired, the user is logged out.
 
 ---
+
+## ⚠️ Known Limitations
+
+1. **File storage is local** — Uploaded PDFs are stored on the server's local filesystem (`wwwroot/uploads/`). This is not suitable for scaled/containerized deployments. A cloud storage provider (AWS S3, Azure Blob) should be used in production.
+2. **No email notifications** — The system does not send emails for events like assignment publication, submission grading, or enrollment confirmation.
+3. **No real-time updates** — The UI relies on React Query polling/invalidation. There is no WebSocket or SSE-based real-time push for events like new submissions.
+4. **Single-file submission only** — Students can attach only one PDF per submission. Multiple file attachments are not supported.
+6. **Refresh token stored in HttpOnly cookie** — While secure, this requires the backend to be on the same domain (or CORS `withCredentials` must be configured correctly) when deployed to separate origins.
+7. **No test coverage yet** — The test project scaffold exists but no test cases have been written yet.
 
 
