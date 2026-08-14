@@ -1,6 +1,6 @@
 # 📚 Assignment Submission System
 
-A full-stack, role-based **Assignment & Submission Management System** designed for educational institutions. It provides a centralized platform for A**Admin**, **Teacher**, and **Student** to manage courses, subjects, assignments, and student submissions efficiently, with PDF attachment support for secure and streamlined academic document management.
+A full-stack, role-based **Assignment & Submission Management System** designed for educational institutions. It provides a centralized platform for **Admin**, **Teacher**, and **Student** to manage courses, subjects, assignments, and student submissions efficiently, with PDF attachment support for secure and streamlined academic document management.
 
 ---
 
