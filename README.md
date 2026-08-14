@@ -372,6 +372,6 @@ Swagger documentation is available at `http://localhost:5221/swagger` when runni
 3. **No real-time updates** — The UI relies on React Query polling/invalidation. There is no WebSocket or SSE-based real-time push for events like new submissions.
 4. **Single-file submission only** — Students can attach only one PDF per submission. Multiple file attachments are not supported.
 6. **Refresh token stored in HttpOnly cookie** — While secure, this requires the backend to be on the same domain (or CORS `withCredentials` must be configured correctly) when deployed to separate origins.
-7. **No test coverage yet** — The test project scaffold exists but no test cases have been written yet.
+7. No Integration Tests or API/E2E Test Coverage Yet — The test project scaffold exists, and only unit test cases have been implemented so far.
 
 
