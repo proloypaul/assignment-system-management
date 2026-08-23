@@ -1,11 +1,9 @@
 using Asp.Versioning;
 using AssignmentSystem.Application.Common.Interfaces;
-using AssignmentSystem.Domain.Entities;
-using AssignmentSystem.Domain.Enums;
-using AssignmentSystem.Infrastructure.Data;
+using AssignmentSystem.Application.Features.Submissions.DTOs;
+using AssignmentSystem.Application.Features.Submissions.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace AssignmentSystem.Api.Controllers.V1;
 
@@ -15,12 +13,12 @@ namespace AssignmentSystem.Api.Controllers.V1;
 [Authorize]
 public class SubmissionsController : ControllerBase
 {
-    private readonly ApplicationDbContext _db;
+    private readonly ISubmissionService _submissionService;
     private readonly ICurrentUserService _currentUser;
 
-    public SubmissionsController(ApplicationDbContext db, ICurrentUserService currentUser)
+    public SubmissionsController(ISubmissionService submissionService, ICurrentUserService currentUser)
     {
-        _db = db;
+        _submissionService = submissionService;
         _currentUser = currentUser;
     }
 
@@ -32,58 +30,27 @@ public class SubmissionsController : ControllerBase
         var studentId = _currentUser.UserId
             ?? throw new UnauthorizedAccessException();
 
-        var assignment = await _db.Assignments.FindAsync(assignmentId);
-        if (assignment is null) return NotFound();
-        if (assignment.Status != AssignmentStatus.Published)
-            return BadRequest(new { message = "Assignment is not published." });
-        if (DateTime.UtcNow > assignment.EndDate)
-            return BadRequest(new { message = "Submission deadline has passed." });
+        var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
 
-        var existing = await _db.Submissions
-            .FirstOrDefaultAsync(s => s.AssignmentId == assignmentId && s.StudentId == studentId);
-        if (existing is not null)
-            return Conflict(new { message = "You have already submitted for this assignment." });
-
-        string? attachmentUrl = null;
-        if (request.File is not null)
+        try
         {
-            if (request.File.ContentType != "application/pdf")
-                return BadRequest(new { message = "Only PDF files are allowed." });
-
-            var uploadPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "submissions");
-            if (!Directory.Exists(uploadPath))
-                Directory.CreateDirectory(uploadPath);
-
-            var fileName = $"{Guid.NewGuid()}_{Path.GetFileName(request.File.FileName)}";
-            var filePath = Path.Combine(uploadPath, fileName);
-
-            await using (var stream = new FileStream(filePath, FileMode.Create))
-            {
-                await request.File.CopyToAsync(stream);
-            }
-
-            attachmentUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}/uploads/submissions/{fileName}";
+            var result = await _submissionService.SubmitAsync(assignmentId, studentId, request, baseUrl);
+            return Accepted(result);
         }
-
-        var submission = new Submission
+        catch (KeyNotFoundException ex)
         {
-            AssignmentId = assignmentId,
-            StudentId = studentId,
-            AnswerText = request.AnswerText,
-            AttachmentFileUrl = attachmentUrl,
-            SubmittedAt = DateTime.UtcNow,
-            Status = SubmissionStatus.Submitted
-        };
-
-        _db.Submissions.Add(submission);
-        await _db.SaveChangesAsync();
-
-        return Accepted(new
+            return NotFound(new { message = ex.Message });
+        }
+        catch (ArgumentException ex)
         {
-            submissionId = submission.Id,
-            status = submission.Status.ToString(),
-            attachmentUrl
-        });
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return ex.Message.Contains("already submitted")
+                ? Conflict(new { message = ex.Message })
+                : BadRequest(new { message = ex.Message });
+        }
     }
 
     /// <summary>Get all submissions made by the current student — projected to DTO.</summary>
@@ -94,25 +61,7 @@ public class SubmissionsController : ControllerBase
         var studentId = _currentUser.UserId;
         if (!studentId.HasValue) return Unauthorized();
 
-        var submissions = await _db.Submissions
-            .Where(s => s.StudentId == studentId.Value)
-            .OrderByDescending(s => s.SubmittedAt)
-            .Select(s => new MySubmissionDto
-            {
-                Id = s.Id,
-                AssignmentId = s.AssignmentId,
-                AssignmentTitle = s.Assignment != null ? s.Assignment.Title : null,
-                SubjectName = s.Assignment != null && s.Assignment.Subject != null ? s.Assignment.Subject.Name : null,
-                CourseName = s.Assignment != null && s.Assignment.Subject != null && s.Assignment.Subject.Course != null ? s.Assignment.Subject.Course.Name : null,
-                AnswerText = s.AnswerText,
-                AttachmentFileUrl = s.AttachmentFileUrl,
-                Status = s.Status.ToString(),
-                MarksAwarded = s.MarksAwarded,
-                Feedback = s.Feedback,
-                SubmittedAt = s.SubmittedAt
-            })
-            .ToListAsync();
-
+        var submissions = await _submissionService.GetMySubmissionsAsync(studentId.Value);
         return Ok(submissions);
     }
 
@@ -124,24 +73,7 @@ public class SubmissionsController : ControllerBase
         var studentId = _currentUser.UserId;
         if (!studentId.HasValue) return Unauthorized();
 
-        var submission = await _db.Submissions
-            .Where(s => s.AssignmentId == assignmentId && s.StudentId == studentId.Value)
-            .Select(s => new MySubmissionDto
-            {
-                Id = s.Id,
-                AssignmentId = s.AssignmentId,
-                AssignmentTitle = s.Assignment != null ? s.Assignment.Title : null,
-                SubjectName = s.Assignment != null && s.Assignment.Subject != null ? s.Assignment.Subject.Name : null,
-                CourseName = s.Assignment != null && s.Assignment.Subject != null && s.Assignment.Subject.Course != null ? s.Assignment.Subject.Course.Name : null,
-                AnswerText = s.AnswerText,
-                AttachmentFileUrl = s.AttachmentFileUrl,
-                Status = s.Status.ToString(),
-                MarksAwarded = s.MarksAwarded,
-                Feedback = s.Feedback,
-                SubmittedAt = s.SubmittedAt
-            })
-            .FirstOrDefaultAsync();
-
+        var submission = await _submissionService.GetMySubmissionAsync(assignmentId, studentId.Value);
         return submission is null ? NotFound() : Ok(submission);
     }
 
@@ -150,39 +82,14 @@ public class SubmissionsController : ControllerBase
     [Authorize(Roles = "Teacher,Admin")]
     public async Task<IActionResult> Grade(Guid submissionId, [FromBody] GradeRequest request)
     {
-        var submission = await _db.Submissions.FindAsync(submissionId);
-        if (submission is null) return NotFound();
-
-        submission.MarksAwarded = request.MarksAwarded;
-        submission.Feedback = request.Feedback;
-        submission.Status = SubmissionStatus.Graded;
-
-        await _db.SaveChangesAsync();
-        return NoContent();
+        try
+        {
+            await _submissionService.GradeAsync(submissionId, request);
+            return NoContent();
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound();
+        }
     }
 }
-
-// ─── DTOs ──────────────────────────────────────────────────────────────────────
-public class MySubmissionDto
-{
-    public Guid Id { get; set; }
-    public Guid AssignmentId { get; set; }
-    public string? AssignmentTitle { get; set; }
-    public string? SubjectName { get; set; }
-    public string? CourseName { get; set; }
-    public string? AnswerText { get; set; }
-    public string? AttachmentFileUrl { get; set; }
-    public string Status { get; set; } = string.Empty;
-    public int? MarksAwarded { get; set; }
-    public string? Feedback { get; set; }
-    public DateTime SubmittedAt { get; set; }
-}
-
-// ─── Request types ────────────────────────────────────────────────────────────
-public class SubmitRequest
-{
-    public string? AnswerText { get; set; }
-    public IFormFile? File { get; set; }
-}
-
-public record GradeRequest(int MarksAwarded, string? Feedback);
