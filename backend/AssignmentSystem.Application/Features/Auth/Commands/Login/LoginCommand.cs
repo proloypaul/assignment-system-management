@@ -26,10 +26,10 @@ public class LoginCommandHandler : IRequestHandler<LoginCommand, AuthTokensDto>
     public async Task<AuthTokensDto> Handle(LoginCommand request, CancellationToken cancellationToken)
     {
         var user = await _userManager.FindByEmailAsync(request.Email)
-            ?? throw new UnauthorizedAccessException("Invalid credentials.");
+            ?? throw new ArgumentException("Invalid credentials.");
 
         if (!await _userManager.CheckPasswordAsync(user, request.Password))
-            throw new UnauthorizedAccessException("Invalid credentials.");
+            throw new ArgumentException("Invalid credentials.");
 
         var roles = await _userManager.GetRolesAsync(user);
         var role = roles.FirstOrDefault() ?? "Student";

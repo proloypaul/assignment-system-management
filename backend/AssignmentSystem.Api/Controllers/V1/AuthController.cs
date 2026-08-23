@@ -2,6 +2,7 @@ using Asp.Versioning;
 using AssignmentSystem.Application.Features.Auth.Commands.Login;
 using AssignmentSystem.Application.Features.Auth.Commands.RefreshToken;
 using AssignmentSystem.Application.Features.Auth.Commands.SignOut;
+using AssignmentSystem.Application.Features.Auth.DTOs;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -89,7 +90,7 @@ public class AuthController : ControllerBase
         var config = HttpContext.RequestServices.GetRequiredService<IConfiguration>();
         var isSecure = bool.Parse(config["Cookie__Secure"] ?? "false");
         var sameSiteString = config["Cookie__SameSite"] ?? "None";
-        
+
         var sameSiteMode = sameSiteString.ToLower() switch
         {
             "strict" => SameSiteMode.Strict,
@@ -99,39 +100,30 @@ public class AuthController : ControllerBase
         };
 
         var accessTokenExpirationMinutes =
-        int.TryParse(
-            config["Cookie__AccessTokenExpirationMinutes"],
-            out var accessMinutes
-        )
-            ? accessMinutes
-            : 130;
+            int.TryParse(config["Cookie__AccessTokenExpirationMinutes"], out var accessMinutes)
+                ? accessMinutes
+                : 130;
 
         var refreshTokenExpirationDays =
-            int.TryParse(
-                config["Cookie__RefreshTokenExpirationDays"],
-                out var refreshDays
-            )
-            ? refreshDays
-            : 7;
+            int.TryParse(config["Cookie__RefreshTokenExpirationDays"], out var refreshDays)
+                ? refreshDays
+                : 7;
 
-        var accessTokenOptions = new CookieOptions
+        Response.Cookies.Append("accessToken", accessToken, new CookieOptions
         {
             HttpOnly = true,
             Secure = isSecure,
             SameSite = sameSiteMode,
             Expires = DateTimeOffset.UtcNow.AddMinutes(accessTokenExpirationMinutes)
-        };
+        });
 
-        var refreshTokenOptions = new CookieOptions
+        Response.Cookies.Append("refreshToken", refreshToken, new CookieOptions
         {
             HttpOnly = true,
             Secure = isSecure,
             SameSite = sameSiteMode,
             Expires = DateTimeOffset.UtcNow.AddDays(refreshTokenExpirationDays)
-        };
-
-        Response.Cookies.Append("accessToken", accessToken, accessTokenOptions);
-        Response.Cookies.Append("refreshToken", refreshToken, refreshTokenOptions);
+        });
     }
 
     private void ClearTokenCookies()
@@ -140,6 +132,3 @@ public class AuthController : ControllerBase
         Response.Cookies.Delete("refreshToken");
     }
 }
-
-public record LoginRequest(string Email, string Password);
-public record RegisterRequest(string Name, string Email, string Password, string Role);

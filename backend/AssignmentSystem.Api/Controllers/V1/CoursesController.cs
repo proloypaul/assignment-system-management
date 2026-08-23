@@ -1,10 +1,9 @@
 using Asp.Versioning;
+using AssignmentSystem.Application.Features.Courses.DTOs;
+using AssignmentSystem.Application.Features.Courses.Interfaces;
 using AssignmentSystem.Application.Common.Interfaces;
-using AssignmentSystem.Domain.Entities;
-using AssignmentSystem.Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace AssignmentSystem.Api.Controllers.V1;
 
@@ -14,82 +13,29 @@ namespace AssignmentSystem.Api.Controllers.V1;
 [Authorize]
 public class CoursesController : ControllerBase
 {
-    private readonly ApplicationDbContext _db;
+    private readonly ICourseService _courseService;
     private readonly ICurrentUserService _currentUser;
 
-    public CoursesController(ApplicationDbContext db, ICurrentUserService currentUser)
+    public CoursesController(ICourseService courseService, ICurrentUserService currentUser)
     {
-        _db = db;
+        _courseService = courseService;
         _currentUser = currentUser;
     }
 
-    /// <summary>Get all courses with their subjects projected to avoid circular refs.</summary>
+    /// <summary>Get all courses with pagination.</summary>
     [HttpGet]
     public async Task<IActionResult> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
     {
-        var studentId = _currentUser.UserId;
-        var query = _db.Courses.AsQueryable();
-
-        var totalCount = await query.CountAsync();
+        var (items, totalCount) = await _courseService.GetAllAsync(page, pageSize, _currentUser.UserId);
         var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
-
-        var courses = await query
-            .Include(c => c.Subjects)
-            .Include(c => c.Enrollments)
-            .OrderByDescending(c => c.CreatedAt)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .Select(c => new CourseDto
-            {
-                Id = c.Id,
-                Name = c.Name,
-                Code = c.Code,
-                Description = c.Description,
-                Capacity = c.Capacity,
-                IsActive = c.IsActive,
-                StartDate = c.StartDate,
-                EndDate = c.EndDate,
-                IsEnrolled = studentId.HasValue ? c.Enrollments.Any(e => e.StudentId == studentId.Value) : false,
-                Subjects = c.Subjects.Select(s => new SubjectSummaryDto
-                {
-                    Id = s.Id,
-                    Name = s.Name,
-                    Code = s.Code,
-                    Credits = s.Credits
-                }).ToList()
-            })
-            .ToListAsync();
-
-        return Ok(new { items = courses, totalCount, page, pageSize, totalPages });
+        return Ok(new { items, totalCount, page, pageSize, totalPages });
     }
 
     /// <summary>Get a course by ID.</summary>
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(Guid id)
     {
-        var course = await _db.Courses
-            .Include(c => c.Subjects)
-            .Where(c => c.Id == id)
-            .Select(c => new CourseDto
-            {
-                Id = c.Id,
-                Name = c.Name,
-                Code = c.Code,
-                Description = c.Description,
-                Capacity = c.Capacity,
-                IsActive = c.IsActive,
-                StartDate = c.StartDate,
-                EndDate = c.EndDate,
-                Subjects = c.Subjects.Select(s => new SubjectSummaryDto
-                {
-                    Id = s.Id,
-                    Name = s.Name,
-                    Code = s.Code,
-                    Credits = s.Credits
-                }).ToList()
-            })
-            .FirstOrDefaultAsync();
-
+        var course = await _courseService.GetByIdAsync(id);
         return course is null ? NotFound() : Ok(course);
     }
 
@@ -98,33 +44,8 @@ public class CoursesController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Create([FromBody] CreateCourseRequest request)
     {
-        var course = new Course
-        {
-            Name = request.Name,
-            Code = request.Code,
-            Description = request.Description,
-            Capacity = request.Capacity,
-            StartDate = request.StartDate,
-            EndDate = request.EndDate,
-            IsActive = true
-        };
-        _db.Courses.Add(course);
-        await _db.SaveChangesAsync();
-
-        var dto = new CourseDto
-        {
-            Id = course.Id,
-            Name = course.Name,
-            Code = course.Code,
-            Description = course.Description,
-            Capacity = course.Capacity,
-            IsActive = course.IsActive,
-            StartDate = course.StartDate,
-            EndDate = course.EndDate,
-            Subjects = []
-        };
-
-        return CreatedAtAction(nameof(GetById), new { id = course.Id }, dto);
+        var dto = await _courseService.CreateAsync(request);
+        return CreatedAtAction(nameof(GetById), new { id = dto.Id }, dto);
     }
 
     /// <summary>Update a course (Admin only).</summary>
@@ -132,18 +53,15 @@ public class CoursesController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateCourseRequest request)
     {
-        var course = await _db.Courses.FindAsync(id);
-        if (course is null) return NotFound();
-
-        course.Name = request.Name ?? course.Name;
-        course.Description = request.Description ?? course.Description;
-        course.Capacity = request.Capacity ?? course.Capacity;
-        course.IsActive = request.IsActive ?? course.IsActive;
-        course.StartDate = request.StartDate ?? course.StartDate;
-        course.EndDate = request.EndDate ?? course.EndDate;
-
-        await _db.SaveChangesAsync();
-        return NoContent();
+        try
+        {
+            await _courseService.UpdateAsync(id, request);
+            return NoContent();
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound();
+        }
     }
 
     /// <summary>Delete a course (Admin only).</summary>
@@ -151,81 +69,61 @@ public class CoursesController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Delete(Guid id)
     {
-        var course = await _db.Courses.FindAsync(id);
-        if (course is null) return NotFound();
-
-        _db.Courses.Remove(course);
-        await _db.SaveChangesAsync();
-        return NoContent();
+        try
+        {
+            await _courseService.DeleteAsync(id);
+            return NoContent();
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound();
+        }
     }
 
-    /// <summary>Enroll a student in a course (Admin only).</summary>
+    /// <summary>Admin enrolls a student in a course.</summary>
     [HttpPost("{id:guid}/enroll-student")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> EnrollStudent(Guid id, [FromBody] EnrollStudentRequest request)
     {
-        var course = await _db.Courses.FindAsync(id);
-        if (course is null) return NotFound("Course not found.");
-
-        var student = await _db.Users.FindAsync(request.StudentId);
-        if (student is null) return NotFound("Student not found.");
-
-        var existing = await _db.Set<CourseEnrollment>()
-            .FirstOrDefaultAsync(ce => ce.CourseId == id && ce.StudentId == request.StudentId);
-
-        if (existing is not null)
-            return Conflict(new { message = "Student is already enrolled in this course." });
-
-        var enrollment = new CourseEnrollment
+        try
         {
-            CourseId = id,
-            StudentId = request.StudentId,
-            EnrolledAt = DateTime.UtcNow
-        };
-
-        _db.Set<CourseEnrollment>().Add(enrollment);
-        await _db.SaveChangesAsync();
-
-        return Ok(new { message = "Student enrolled successfully." });
+            await _courseService.EnrollStudentAsync(id, request);
+            return Ok(new { message = "Student enrolled successfully." });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
     }
 
-    /// <summary>Student self-enrollment with rules (Student only).</summary>
+    /// <summary>Student self-enrollment with business rules.</summary>
     [HttpPost("{id:guid}/enroll")]
     [Authorize(Roles = "Student")]
     public async Task<IActionResult> StudentEnroll(Guid id)
     {
-        var course = await _db.Courses.FindAsync(id);
-        if (course is null) return NotFound("Course not found.");
-
-        var now = DateTime.UtcNow;
-        if (now < course.StartDate || now > course.EndDate)
-            return BadRequest(new { message = "Course is not currently open for enrollment." });
-
         var studentId = _currentUser.UserId;
-        if (studentId == null) return Unauthorized();
+        if (studentId is null) return Unauthorized();
 
-        var existingEnrollment = await _db.Set<CourseEnrollment>()
-            .Include(ce => ce.Course)
-            .Where(ce => ce.StudentId == studentId)
-            .ToListAsync();
-
-        if (existingEnrollment.Any(ce => ce.CourseId == id))
-            return Conflict(new { message = "You are already enrolled in this course." });
-
-        if (existingEnrollment.Any(ce => ce.Course.EndDate >= now))
-            return BadRequest(new { message = "You are currently enrolled in another active course. You can only enroll in a new course after your current course ends." });
-
-        var enrollment = new CourseEnrollment
+        try
         {
-            CourseId = id,
-            StudentId = studentId.Value,
-            EnrolledAt = DateTime.UtcNow
-        };
-
-        _db.Set<CourseEnrollment>().Add(enrollment);
-        await _db.SaveChangesAsync();
-
-        return Ok(new { message = "Enrolled successfully." });
+            await _courseService.StudentEnrollAsync(id, studentId.Value);
+            return Ok(new { message = "Enrolled successfully." });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            // Distinguish conflict vs bad request by message content
+            return ex.Message.Contains("already enrolled")
+                ? Conflict(new { message = ex.Message })
+                : BadRequest(new { message = ex.Message });
+        }
     }
 
     /// <summary>Get all enrolled students for a course (Admin only).</summary>
@@ -233,18 +131,7 @@ public class CoursesController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> GetEnrollments(Guid id)
     {
-        var enrollments = await _db.Set<CourseEnrollment>()
-            .Include(ce => ce.Student)
-            .Where(ce => ce.CourseId == id)
-            .Select(ce => new
-            {
-                ce.StudentId,
-                StudentName = ce.Student.Name,
-                StudentEmail = ce.Student.Email,
-                ce.EnrolledAt
-            })
-            .ToListAsync();
-
+        var enrollments = await _courseService.GetEnrollmentsAsync(id);
         return Ok(enrollments);
     }
 
@@ -253,42 +140,14 @@ public class CoursesController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> RemoveEnrollment(Guid id, Guid studentId)
     {
-        var enrollment = await _db.Set<CourseEnrollment>()
-            .FirstOrDefaultAsync(ce => ce.CourseId == id && ce.StudentId == studentId);
-            
-        if (enrollment == null) return NotFound("Enrollment not found.");
-
-        _db.Set<CourseEnrollment>().Remove(enrollment);
-        await _db.SaveChangesAsync();
-
-        return NoContent();
+        try
+        {
+            await _courseService.RemoveEnrollmentAsync(id, studentId);
+            return NoContent();
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
     }
 }
-
-// ─── DTOs ──────────────────────────────────────────────────────────────────────
-public class CourseDto
-{
-    public Guid Id { get; set; }
-    public string Name { get; set; } = string.Empty;
-    public string Code { get; set; } = string.Empty;
-    public string? Description { get; set; }
-    public int Capacity { get; set; }
-    public bool IsActive { get; set; }
-    public DateTime StartDate { get; set; }
-    public DateTime EndDate { get; set; }
-    public bool IsEnrolled { get; set; }
-    public List<SubjectSummaryDto> Subjects { get; set; } = [];
-}
-
-public class SubjectSummaryDto
-{
-    public Guid Id { get; set; }
-    public string Name { get; set; } = string.Empty;
-    public string? Code { get; set; }
-    public int Credits { get; set; }
-}
-
-// ─── Request records ──────────────────────────────────────────────────────────
-public record CreateCourseRequest(string Name, string Code, string Description, int Capacity, DateTime StartDate, DateTime EndDate);
-public record UpdateCourseRequest(string? Name, string? Description, int? Capacity, bool? IsActive, DateTime? StartDate, DateTime? EndDate);
-public record EnrollStudentRequest(Guid StudentId);

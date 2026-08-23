@@ -1,6 +1,12 @@
 using AssignmentSystem.Application.Common.Interfaces;
+using AssignmentSystem.Application.Features.Assignments.Interfaces;
+using AssignmentSystem.Application.Features.Courses.Interfaces;
+using AssignmentSystem.Application.Features.Subjects.Interfaces;
+using AssignmentSystem.Application.Features.Submissions.Interfaces;
+using AssignmentSystem.Application.Features.Users.Interfaces;
 using AssignmentSystem.Infrastructure.Data;
 using AssignmentSystem.Infrastructure.Services;
+using AssignmentSystem.Infrastructure.Services.BackgroundJobs;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,6 +29,17 @@ public static class DependencyInjection
 
         services.AddScoped<ITokenService, TokenService>();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
+        services.AddScoped<ICourseService, CourseService>();
+        services.AddScoped<ISubjectService, SubjectService>();
+        services.AddScoped<IAssignmentService, AssignmentService>();
+        services.AddScoped<ISubmissionService, SubmissionService>();
+        services.AddScoped<IUserService, UserService>();
+
+        // ── Background submission queue ────────────────────────────────────────
+        // Singleton: the same Channel<T> instance must be shared between the
+        // HTTP writers (SubmissionService) and the BackgroundService reader.
+        services.AddSingleton<ISubmissionQueue, SubmissionQueue>();
+        services.AddHostedService<SubmissionBackgroundWorker>();
 
         return services;
     }
