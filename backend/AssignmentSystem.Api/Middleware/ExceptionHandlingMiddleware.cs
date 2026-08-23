@@ -42,6 +42,11 @@ public class ExceptionHandlingMiddleware
                 statusCode = (int)HttpStatusCode.Unauthorized;
                 message = exception.Message;
                 break;
+            case ArgumentException:
+            case InvalidOperationException:
+                statusCode = (int)HttpStatusCode.BadRequest;
+                message = exception.Message;
+                break;
             case KeyNotFoundException:
                 statusCode = (int)HttpStatusCode.NotFound;
                 message = exception.Message;

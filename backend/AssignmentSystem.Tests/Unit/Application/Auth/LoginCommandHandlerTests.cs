@@ -45,7 +45,7 @@ public class LoginCommandHandlerTests
     // ── Unhappy paths ──────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task Handle_WhenUserNotFound_ThrowsUnauthorizedAccessException()
+    public async Task Handle_WhenUserNotFound_ThrowsArgumentException()
     {
         // Arrange
         _userManagerMock
@@ -58,12 +58,12 @@ public class LoginCommandHandlerTests
         var act = async () => await _sut.Handle(command, CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<UnauthorizedAccessException>()
+        await act.Should().ThrowAsync<ArgumentException>()
             .WithMessage("*Invalid credentials*");
     }
 
     [Fact]
-    public async Task Handle_WhenPasswordIsIncorrect_ThrowsUnauthorizedAccessException()
+    public async Task Handle_WhenPasswordIsIncorrect_ThrowsArgumentException()
     {
         // Arrange
         var user = new UserBuilder().Build();
@@ -82,7 +82,7 @@ public class LoginCommandHandlerTests
         var act = async () => await _sut.Handle(command, CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<UnauthorizedAccessException>()
+        await act.Should().ThrowAsync<ArgumentException>()
             .WithMessage("*Invalid credentials*");
     }
 
