@@ -10,14 +10,26 @@ namespace AssignmentSystem.Infrastructure.Services;
 public class SubmissionService : ISubmissionService
 {
     private readonly ApplicationDbContext _db;
+    private readonly ISubmissionQueue _queue;
 
-    public SubmissionService(ApplicationDbContext db)
+    public SubmissionService(ApplicationDbContext db, ISubmissionQueue queue)
     {
         _db = db;
+        _queue = queue;
     }
 
-    public async Task<SubmitResultDto> SubmitAsync(Guid assignmentId, Guid studentId, SubmitRequest request, string baseUrl)
+    /// <summary>
+    /// Fast-path submit:
+    ///   1. Validate (DB, deadline, duplicate).
+    ///   2. Save file to a TEMP folder (quick — same disk, no network).
+    ///   3. INSERT Submission with Status = Processing.
+    ///   4. Enqueue a job for the BackgroundService to finish.
+    ///   5. Return immediately — the HTTP response is sent before the file is fully processed.
+    /// </summary>
+    public async Task<SubmitResultDto> SubmitAsync(
+        Guid assignmentId, Guid studentId, SubmitRequest request, string baseUrl)
     {
+        // ── 1. Validate assignment ────────────────────────────────────────────
         var assignment = await _db.Assignments.FindAsync(assignmentId)
             ?? throw new KeyNotFoundException("Assignment not found.");
 
@@ -27,51 +39,61 @@ public class SubmissionService : ISubmissionService
         if (DateTime.UtcNow > assignment.EndDate)
             throw new InvalidOperationException("Submission deadline has passed.");
 
+        // ── 2. Check duplicate ───────────────────────────────────────────────
         var existing = await _db.Submissions
             .FirstOrDefaultAsync(s => s.AssignmentId == assignmentId && s.StudentId == studentId);
 
         if (existing is not null)
             throw new InvalidOperationException("You have already submitted for this assignment.");
 
-        string? attachmentUrl = null;
+        // ── 3. Validate file type (if provided) ──────────────────────────────
+        if (request.File is not null && request.File.ContentType != "application/pdf")
+            throw new ArgumentException("Only PDF files are allowed.");
+
+        // ── 4. Save file to TEMP location on disk ────────────────────────────
+        string? tempFilePath = null;
+        string? originalFileName = null;
+
         if (request.File is not null)
         {
-            if (request.File.ContentType != "application/pdf")
-                throw new ArgumentException("Only PDF files are allowed.");
+            var tempDir = Path.Combine(
+                Directory.GetCurrentDirectory(), "wwwroot", "uploads", "temp");
 
-            var uploadPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "submissions");
-            if (!Directory.Exists(uploadPath))
-                Directory.CreateDirectory(uploadPath);
+            if (!Directory.Exists(tempDir))
+                Directory.CreateDirectory(tempDir);
 
-            var fileName = $"{Guid.NewGuid()}_{Path.GetFileName(request.File.FileName)}";
-            var filePath = Path.Combine(uploadPath, fileName);
+            originalFileName = Path.GetFileName(request.File.FileName);
+            tempFilePath = Path.Combine(tempDir, $"{Guid.NewGuid()}_{originalFileName}");
 
-            await using (var stream = new FileStream(filePath, FileMode.Create))
-            {
-                await request.File.CopyToAsync(stream);
-            }
-
-            attachmentUrl = $"{baseUrl}/uploads/submissions/{fileName}";
+            await using var stream = new FileStream(tempFilePath, FileMode.Create);
+            await request.File.CopyToAsync(stream);
         }
 
+        // ── 5. Persist submission with Processing status ──────────────────────
         var submission = new Submission
         {
             AssignmentId = assignmentId,
             StudentId = studentId,
             AnswerText = request.AnswerText,
-            AttachmentFileUrl = attachmentUrl,
             SubmittedAt = DateTime.UtcNow,
-            Status = SubmissionStatus.Submitted
+            Status = SubmissionStatus.Processing
         };
 
         _db.Submissions.Add(submission);
         await _db.SaveChangesAsync();
 
+        // ── 6. Enqueue background job (non-blocking) ──────────────────────────
+        await _queue.EnqueueAsync(new SubmissionJob(
+            submission.Id,
+            tempFilePath,
+            originalFileName,
+            baseUrl));
+
+        // ── 7. Return immediately — background worker does the rest ───────────
         return new SubmitResultDto
         {
             SubmissionId = submission.Id,
-            Status = submission.Status.ToString(),
-            AttachmentUrl = attachmentUrl
+            Status = submission.Status.ToString()   // "Processing"
         };
     }
 

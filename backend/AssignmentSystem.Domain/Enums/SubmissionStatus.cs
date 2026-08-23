@@ -5,5 +5,6 @@ public enum SubmissionStatus
     Pending,
     Processing,
     Submitted,
-    Graded
+    Graded,
+    Failed
 }
