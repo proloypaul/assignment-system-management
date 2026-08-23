@@ -103,15 +103,22 @@ assignment-submission-project/
 │
 ├── backend/
 │   ├── AssignmentSystem.slnx           # Solution file
-│   ├── AssignmentSystem.Api/           # ASP.NET Core Web API (controllers, middleware, Program.cs)
+│   ├── AssignmentSystem.Api/           # ASP.NET Core Web API (thin controllers, middleware, Program.cs)
 │   │   ├── appsettings.json            # Shared / base configuration (committed)
 │   │   ├── appsettings.Development.json  ← YOU CREATE THIS (see Setup)
 │   │   ├── appsettings.Production.json   ← YOU CREATE THIS (see Setup)
 │   │   ├── Controllers/V1/             # All API controllers
 │   │   └── wwwroot/uploads/submissions/  # PDF file storage (auto-created on first upload)
-│   ├── AssignmentSystem.Application/   # MediatR commands, interfaces, DTOs
-│   ├── AssignmentSystem.Domain/        # Entities, enums, domain contracts
-│   ├── AssignmentSystem.Infrastructure/ # DbContext, EF migrations, services, seed data
+│   ├── AssignmentSystem.Application/   # Use Cases & Application Logic
+│   │   ├── Common/                     # Shared interfaces (ITokenService, etc.)
+│   │   └── Features/                   # Feature-based organization (Assignments, Auth, Courses, etc.)
+│   │       ├── DTOs/                   # Request/Response models
+│   │       ├── Interfaces/             # Service Contracts (IAssignmentService, etc.)
+│   │       └── Commands/               # MediatR commands (for Auth)
+│   ├── AssignmentSystem.Domain/        # Core business entities, enums, domain contracts
+│   ├── AssignmentSystem.Infrastructure/ # External concerns (DB, Background Jobs, Service Implementations)
+│   │   ├── Data/                       # EF Core DbContext, Migrations, Seed Data
+│   │   └── Services/                   # Service Implementations (AssignmentService, SubmissionQueue, etc.)
 │   └── AssignmentSystem.Tests/         # Unit/integration test project
 │
 └── frontend/
